@@ -234,11 +234,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hide(restoringFocus: false)
         let window = editorWindow ?? makeWindow(
             title: "ClipBar",
-            size: NSSize(width: 820, height: 580),
+            size: NSSize(width: 900, height: 600),
             style: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         )
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unified
         let size = window.contentLayoutRect.size
         let controller = NSHostingController(rootView: EditorView(
             store: store,
@@ -250,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             close: { [weak self] in self?.editorWindow?.close() }
         ))
         controller.sizingOptions = [.minSize]
+        controller.sceneBridgingOptions = [.toolbars, .title]
         window.contentViewController = controller
         window.setContentSize(size)
         editorWindow = window
@@ -260,10 +260,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openSettings() {
         hide(restoringFocus: false)
         if settingsWindow == nil {
-            let window = makeWindow(title: "ClipBar Settings", size: NSSize(width: 460, height: 620), style: [.titled, .closable])
-            window.contentViewController = NSHostingController(rootView: SettingsView { [weak self] includingPinned in
-                self?.store.clear(includingPinned: includingPinned)
-            })
+            let window = makeWindow(
+                title: "ClipBar Settings",
+                size: NSSize(width: 720, height: 520),
+                style: [.titled, .closable, .fullSizeContentView]
+            )
+            window.toolbarStyle = .unified
+            let controller = NSHostingController(rootView: SettingsView(store: store))
+            controller.sceneBridgingOptions = [.toolbars, .title]
+            window.contentViewController = controller
             window.center()
             settingsWindow = window
         }

@@ -23,10 +23,13 @@ struct Shortcut: Equatable {
         self.modifiers = modifiers
     }
 
-    var display: String {
+    /// Modifier symbols in Apple's order, then the key: ["⇧", "⌘", "V"].
+    var keys: [String] {
         let symbols = [(controlKey, "⌃"), (optionKey, "⌥"), (shiftKey, "⇧"), (cmdKey, "⌘")]
-        return symbols.filter { modifiers & UInt32($0.0) != 0 }.map(\.1).joined() + Self.name(of: Int(keyCode))
+        return symbols.filter { modifiers & UInt32($0.0) != 0 }.map(\.1) + [Self.name(of: Int(keyCode))]
     }
+
+    var display: String { keys.joined() }
 
     private static func name(of code: Int) -> String {
         // ANSI key codes 0x00–0x2F in order.

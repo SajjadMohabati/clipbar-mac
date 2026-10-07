@@ -8,6 +8,7 @@ struct EditorView: View {
     let close: () -> Void
 
     @State private var draft: String
+    @State private var original: String
     @State private var image: NSImage?
     @State private var actualSize = false
     @State private var recognizing = false
@@ -19,62 +20,98 @@ struct EditorView: View {
         self.paste = paste
         self.close = close
         _draft = State(initialValue: item.text)
+        _original = State(initialValue: item.text)
     }
 
     private var item: ClipItem? { store.items.first { $0.id == id } }
-
     private var isText: Bool { [.text, .link, .color].contains(item?.kind) }
-    private var dirty: Bool { isText && draft != item?.text }
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if let item {
-                header(item)
-                content(item)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 20)
-                footer(item)
+                HStack(spacing: 0) {
+                    content(item)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Divider()
+                    inspector(item)
+                        .frame(width: 270)
+                }
+                .navigationTitle(title(item))
+                .toolbar { toolbar(item) }
             } else {
                 ContentUnavailableView("This item was deleted", systemImage: "trash")
             }
         }
-        .frame(minWidth: 640, minHeight: 420)
-        .background(VisualEffect().ignoresSafeArea())
+        .frame(minWidth: 760, minHeight: 460)
+        .overlay(alignment: .bottom) { toast }
         .onExitCommand(perform: close)
+        .onDisappear(perform: commit)
+        .task(id: draft) {
+            // Edits save on their own shortly after typing stops.
+            try? await Task.sleep(for: .milliseconds(600))
+            if !Task.isCancelled { commit() }
+        }
         .task(id: message) {
             guard message != nil else { return }
             do {
-                try await Task.sleep(for: .seconds(2))
-                message = nil
+                try await Task.sleep(for: .seconds(1.8))
+                withAnimation { message = nil }
             } catch {}
         }
     }
 
-    // MARK: - Header
+    // MARK: - Toolbar
 
-    private func header(_ item: ClipItem) -> some View {
-        HStack(spacing: 12) {
-            ItemIcon(item: item, size: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title(item))
-                    .font(.system(size: 15, weight: .semibold))
-                ItemMeta(item: item)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if item.kind == .image {
-                Picker("Zoom", selection: $actualSize) {
-                    Text("Fit").tag(false)
-                    Text("Actual Size").tag(true)
+    @ToolbarContentBuilder
+    private func toolbar(_ item: ClipItem) -> some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if isText {
+                Menu {
+                    ForEach(TextTransform.groups.indices, id: \.self) { index in
+                        Section {
+                            ForEach(TextTransform.groups[index]) { transform in
+                                Button(transform.rawValue) { apply(transform) }
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Transform", systemImage: "wand.and.stars")
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
+                .help("Transform text")
             }
+            Button { store.togglePin(item) } label: {
+                Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
+            }
+            .help(item.pinned ? "Unpin" : "Pin")
+            Button {
+                commit()
+                store.copy(self.item ?? item)
+                flash("Copied to clipboard")
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            .help("Copy (⇧⌘C)")
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            Button(role: .destructive) {
+                close()
+                store.remove(item)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .help("Delete")
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 14)
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                commit()
+                paste(self.item ?? item)
+            } label: {
+                Label("Paste", systemImage: "arrow.turn.down.left")
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.glassProminent)
+            .keyboardShortcut(.return, modifiers: .command)
+            .help("Paste into the previous app (⌘↩)")
+        }
     }
 
     private func title(_ item: ClipItem) -> String {
@@ -92,212 +129,229 @@ struct EditorView: View {
     @ViewBuilder
     private func content(_ item: ClipItem) -> some View {
         switch item.kind {
-        case .image: imageContent(item)
-        case .files: filesContent(item.files ?? [])
         case .text, .link, .color:
-            VStack(alignment: .leading, spacing: 12) {
-                if let color = item.color { ColorDetails(color: color) }
-                TextEditor(text: $draft)
-                    .font(.system(size: 13, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(10)
-                    .panelBackground()
-            }
+            TextEditor(text: $draft)
+                .font(.system(size: 14))
+                .lineSpacing(4)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(Color(nsColor: .textBackgroundColor))
+        case .image:
+            imageContent(item)
+        case .files:
+            filesContent(item.files ?? [])
         }
     }
 
     private func imageContent(_ item: ClipItem) -> some View {
-        VStack(spacing: 12) {
-            Group {
-                if let image {
-                    if actualSize {
-                        ScrollView([.horizontal, .vertical]) { Image(nsImage: image) }
-                    } else {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(8)
+        ZStack {
+            Color(nsColor: .underPageBackgroundColor)
+            if let image {
+                if actualSize {
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(nsImage: image).padding(24)
                     }
                 } else {
-                    ProgressView()
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(.rect(cornerRadius: 8))
+                        .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+                        .padding(28)
                 }
+            } else {
+                ProgressView()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .panelBackground()
-            .onTapGesture(count: 2) { actualSize.toggle() }
-
-            recognizedText(item)
+        }
+        .onTapGesture(count: 2) { withAnimation(.snappy) { actualSize.toggle() } }
+        .overlay(alignment: .bottom) {
+            Picker("Zoom", selection: $actualSize.animation(.snappy)) {
+                Image(systemName: "arrow.down.right.and.arrow.up.left").tag(false)
+                Image(systemName: "1.magnifyingglass").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Fit / actual size (double-click the image)")
+            .padding(14)
         }
         .task(id: item.image) {
             image = item.image.flatMap { NSImage(contentsOf: ImageStore.url($0)) }
         }
     }
 
-    @ViewBuilder
-    private func recognizedText(_ item: ClipItem) -> some View {
-        if item.text.isEmpty {
-            HStack {
-                Label("Text inside the image can be copied after recognition", systemImage: "text.viewfinder")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(recognizing ? "Recognizing…" : "Recognize Text") {
-                    recognize(item)
-                }
-                .disabled(recognizing)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Label("Text in image", systemImage: "text.viewfinder")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Copy Text") {
-                        Clipboard.write(item.text)
-                        message = "Text copied"
-                    }
-                    .controlSize(.small)
-                }
-                ScrollView {
-                    Text(item.text)
-                        .font(.system(size: 13))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 110)
-            }
-            .padding(12)
-            .panelBackground()
-        }
-    }
-
     private func filesContent(_ paths: [String]) -> some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(paths, id: \.self) { path in
-                    HStack(spacing: 10) {
-                        Image(nsImage: Icons.file(path))
-                            .resizable()
-                            .frame(width: 30, height: 30)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(URL(fileURLWithPath: path).lastPathComponent)
-                                .font(.system(size: 13))
-                            Text(path)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        Spacer()
-                        if !FileManager.default.fileExists(atPath: path) {
-                            Text("Missing")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.orange)
-                        }
-                        IconButton(symbol: "magnifyingglass", help: "Show in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+        List(paths, id: \.self) { path in
+            HStack(spacing: 12) {
+                Image(nsImage: Icons.file(path))
+                    .resizable()
+                    .frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(URL(fileURLWithPath: path).lastPathComponent)
+                        .font(.system(size: 13, weight: .medium))
+                    Text(path)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer()
+                if !FileManager.default.fileExists(atPath: path) {
+                    Text("Missing")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
+                IconButton(symbol: "arrow.up.forward.app", help: "Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                 }
             }
+            .padding(.vertical, 4)
         }
-        .panelBackground()
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
     }
 
-    // MARK: - Footer
+    // MARK: - Inspector
 
-    private func footer(_ item: ClipItem) -> some View {
-        HStack(spacing: 8) {
-            switch item.kind {
-            case .text, .link, .color:
-                Menu("Transform") {
-                    ForEach(TextTransform.groups.indices, id: \.self) { index in
-                        Section {
-                            ForEach(TextTransform.groups[index]) { transform in
-                                Button(transform.rawValue) { apply(transform) }
+    private func inspector(_ item: ClipItem) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let color = item.color, isText {
+                    ColorInspector(color: color, copy: copyValue)
+                }
+
+                InspectorSection("Details") {
+                    InspectorRow("Type", value: title(item))
+                    if let app = Icons.app(item.source) {
+                        InspectorRow("Copied from") {
+                            HStack(spacing: 5) {
+                                Image(nsImage: app.icon).resizable().frame(width: 14, height: 14)
+                                Text(app.name)
                             }
                         }
                     }
+                    InspectorRow("Copied", value: item.date.formatted(date: .abbreviated, time: .shortened))
+                    InspectorRow("Used", value: item.uses == 1 ? "Once" : "\(item.uses) times")
+                    ForEach(stats(item), id: \.0) { InspectorRow($0.0, value: $0.1) }
                 }
-                .fixedSize()
+
                 if let url = item.url {
-                    Button("Open Link") { NSWorkspace.shared.open(url) }
+                    InspectorSection("Link") {
+                        InspectorRow("Host", value: url.host() ?? url.absoluteString)
+                        Button("Open in Browser", systemImage: "safari") { NSWorkspace.shared.open(url) }
+                            .frame(maxWidth: .infinity)
+                    }
                 }
-            case .image:
-                Button("Save As…") { saveImage(item) }
-            case .files:
-                Button("Show in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting((item.files ?? []).map { URL(fileURLWithPath: $0) })
+
+                switch item.kind {
+                case .image: imageInspector(item)
+                case .files:
+                    Button("Show in Finder", systemImage: "folder") {
+                        NSWorkspace.shared.activateFileViewerSelecting((item.files ?? []).map { URL(fileURLWithPath: $0) })
+                    }
+                    .frame(maxWidth: .infinity)
+                default:
+                    if draft != original {
+                        InspectorSection("Changes") {
+                            Text("Edits are saved automatically.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Button("Revert to Original", systemImage: "arrow.uturn.backward") { draft = original }
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
             }
-
-            Spacer()
-
-            Text(message ?? stats(item))
-                .font(.system(size: 11))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .contentTransition(.opacity)
-                .animation(.snappy, value: message)
-
-            if dirty {
-                Button("Revert") { draft = item.text }
-            }
-            Button("Close", action: close)
-                .keyboardShortcut(.cancelAction)
-            Button("Copy") {
-                commit()
-                store.copy(self.item ?? item)
-                message = "Copied"
-            }
-            Button("Paste") {
-                commit()
-                paste(self.item ?? item)
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .help("Paste into the previous app (⌘↩)")
-            if isText {
-                Button("Save") {
-                    commit()
-                    message = "Saved"
-                }
-                .keyboardShortcut("s")
-                .buttonStyle(.borderedProminent)
-                .disabled(!dirty || !draft.contains { !$0.isWhitespace })
-            }
+            .padding(16)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .background(.background.secondary)
     }
 
-    private func stats(_ item: ClipItem) -> String {
+    @ViewBuilder
+    private func imageInspector(_ item: ClipItem) -> some View {
+        InspectorSection("Text in Image") {
+            if item.text.isEmpty {
+                Text(recognizing ? "Looking for text…" : "No text recognized yet.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Button(recognizing ? "Recognizing…" : "Recognize Text", systemImage: "text.viewfinder") {
+                    recognize(item)
+                }
+                .disabled(recognizing)
+                .frame(maxWidth: .infinity)
+            } else {
+                Text(item.text)
+                    .font(.system(size: 12))
+                    .textSelection(.enabled)
+                    .lineLimit(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Copy Text", systemImage: "doc.on.doc") { copyValue(item.text) }
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        Button("Save Image…", systemImage: "square.and.arrow.down") { saveImage(item) }
+            .frame(maxWidth: .infinity)
+    }
+
+    private func stats(_ item: ClipItem) -> [(String, String)] {
         switch item.kind {
         case .image:
-            guard let rep = image?.representations.first else { return "" }
-            return "\(rep.pixelsWide) × \(rep.pixelsHigh) px"
+            guard let name = item.image else { return [] }
+            var rows: [(String, String)] = []
+            if let rep = image?.representations.first {
+                rows.append(("Dimensions", "\(rep.pixelsWide) × \(rep.pixelsHigh)"))
+            }
+            if let size = try? ImageStore.url(name).resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                rows.append(("File size", Int64(size).formatted(.byteCount(style: .file))))
+            }
+            return rows
         case .files:
-            return item.files?.count == 1 ? "1 item" : "\(item.files?.count ?? 0) items"
+            return [("Items", "\(item.files?.count ?? 0)")]
         default:
             let lines = draft.reduce(1) { $1.isNewline ? $0 + 1 : $0 }
-            return "\(draft.count) characters · \(lines) \(lines == 1 ? "line" : "lines")"
+            var rows = [("Characters", draft.count.formatted()), ("Lines", lines.formatted())]
+            if draft.utf8.count < 200_000 {
+                rows.insert(("Words", draft.split(whereSeparator: { $0.isWhitespace }).count.formatted()), at: 1)
+            }
+            return rows
+        }
+    }
+
+    @ViewBuilder
+    private var toast: some View {
+        if let message {
+            Label(message, systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.bottom, 18)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
     // MARK: - Actions
 
     private func commit() {
-        guard dirty, draft.contains(where: { !$0.isWhitespace }) else { return }
+        guard isText, let item, draft != item.text, draft.contains(where: { !$0.isWhitespace }) else { return }
         store.updateText(id, to: draft)
+    }
+
+    private func flash(_ text: String) {
+        withAnimation(.snappy) { message = text }
+    }
+
+    private func copyValue(_ text: String) {
+        Clipboard.write(text)
+        flash("Copied “\(text.prefix(40))”")
     }
 
     private func apply(_ transform: TextTransform) {
         if let result = transform.apply(draft) {
             draft = result
         } else {
-            message = "Couldn't apply “\(transform.rawValue)” to this text"
+            flash("Couldn't apply “\(transform.rawValue)”")
         }
     }
 
@@ -307,7 +361,7 @@ struct EditorView: View {
         Task {
             await store.recognizeText(inImage: name)
             recognizing = false
-            if self.item?.text.isEmpty == true { message = "No text found in this image" }
+            if self.item?.text.isEmpty == true { flash("No text found in this image") }
         }
     }
 
@@ -322,61 +376,105 @@ struct EditorView: View {
                 try FileManager.default.removeItem(at: destination)
             }
             try FileManager.default.copyItem(at: ImageStore.url(name), to: destination)
-            message = "Image saved"
+            flash("Image saved")
         } catch {
-            message = "Couldn't save the image"
+            flash("Couldn't save the image")
         }
     }
 }
 
-private struct ColorDetails: View {
-    let color: NSColor
+// MARK: - Inspector building blocks
+
+private struct InspectorSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: 9) { content }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: .rect(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.07)))
+        }
+    }
+}
+
+private struct InspectorRow<Value: View>: View {
+    let label: String
+    @ViewBuilder let value: Value
+
+    init(_ label: String, @ViewBuilder value: () -> Value) {
+        self.label = label
+        self.value = value()
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            value.multilineTextAlignment(.trailing)
+        }
+        .font(.system(size: 12))
+    }
+}
+
+private extension InspectorRow where Value == Text {
+    init(_ label: String, value: String) {
+        self.init(label) { Text(value) }
+    }
+}
+
+private struct ColorInspector: View {
+    let color: NSColor
+    let copy: (String) -> Void
+
+    var body: some View {
+        InspectorSection("Color") {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(nsColor: color))
-                .frame(width: 64, height: 40)
+                .frame(height: 72)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.1))
                 }
-            Text(rgb)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+            ForEach(formats, id: \.0) { name, value in
+                InspectorRow(name) {
+                    Button { copy(value) } label: {
+                        HStack(spacing: 5) {
+                            Text(value).font(.system(size: 12, design: .monospaced))
+                            Image(systemName: "doc.on.doc").font(.system(size: 10)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy \(name)")
+                }
+            }
         }
     }
 
-    private var rgb: String {
+    private var formats: [(String, String)] {
         let c = color.usingColorSpace(.sRGB) ?? color
-        let channels = [c.redComponent, c.greenComponent, c.blueComponent].map { Int(($0 * 255).rounded()) }
-        let rgb = channels.map(String.init).joined(separator: ", ")
-        return c.alphaComponent < 1
-            ? "rgba(\(rgb), \(String(format: "%.2f", c.alphaComponent)))"
-            : "rgb(\(rgb))"
+        let (r, g, b, a) = (c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent)
+        let byte = { (v: CGFloat) in Int((v * 255).rounded()) }
+        let hex = String(format: "#%02X%02X%02X", byte(r), byte(g), byte(b)) + (a < 1 ? String(format: "%02X", byte(a)) : "")
+
+        let maxV = max(r, g, b), minV = min(r, g, b)
+        let l = (maxV + minV) / 2
+        let s = maxV == minV ? 0 : (maxV - l) / min(l, 1 - l)
+        let hsl = "hsl(\(Int((c.hueComponent * 360).rounded())), \(Int((s * 100).rounded()))%, \(Int((l * 100).rounded()))%)"
+        let rgb = a < 1
+            ? "rgba(\(byte(r)), \(byte(g)), \(byte(b)), \(String(format: "%.2f", a)))"
+            : "rgb(\(byte(r)), \(byte(g)), \(byte(b)))"
+        return [("HEX", hex), ("RGB", rgb), ("HSL", hsl)]
     }
-}
-
-private extension View {
-    func panelBackground() -> some View {
-        background(Color.primary.opacity(0.045), in: .rect(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
-            .clipShape(.rect(cornerRadius: 12))
-    }
-}
-
-/// Frosted, behind-window background for regular windows.
-struct VisualEffect: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .underWindowBackground
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }

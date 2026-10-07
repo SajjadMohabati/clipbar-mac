@@ -61,10 +61,6 @@ struct ClipView: View {
                     .help("Not recording new copies. Click to resume.")
             }
             Spacer()
-            Text("\(store.items.count)")
-                .font(.system(size: 11, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(.tertiary)
             if confirmingClear {
                 Button("Clear unpinned") {
                     store.clear(includingPinned: false)
@@ -290,25 +286,123 @@ struct ClipView: View {
     }
 
     private var footer: some View {
-        ZStack {
-            if let toast = store.toast {
-                Label(toast, systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else {
-                HStack(spacing: 12) {
-                    KeyHint(keys: "↩", label: settings.autoPaste ? "Paste" : "Copy")
-                    KeyHint(keys: "⌥↩", label: "Copy")
-                    KeyHint(keys: "⌘P", label: "Pin")
-                    KeyHint(keys: "⌘E", label: "Edit")
-                    KeyHint(keys: "⇥", label: "Filter")
+        HStack(spacing: 8) {
+            ZStack(alignment: .leading) {
+                if let toast = store.toast {
+                    Label(toast, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    Text(countText)
+                        .foregroundStyle(.tertiary)
+                        .transition(.opacity)
                 }
-                .transition(.opacity)
             }
+            .font(.system(size: 11, weight: .medium))
+            .animation(.snappy(duration: 0.25), value: store.toast)
+
+            Spacer()
+
+            if let item = store.selectedItem {
+                Button { paste(item, true) } label: {
+                    HStack(spacing: 6) {
+                        Text(settings.autoPaste ? "Paste" : "Copy")
+                            .font(.system(size: 12, weight: .medium))
+                        KeyCap(key: "↩")
+                    }
+                    .padding(.leading, 10)
+                    .padding(.trailing, 4)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.06), in: .capsule)
+                    .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+            }
+            ShortcutsButton()
         }
-        .font(.system(size: 11))
-        .frame(maxWidth: .infinity, minHeight: 20)
-        .animation(.snappy(duration: 0.25), value: store.toast)
+        .padding(.horizontal, 6)
+        .frame(height: 26)
+    }
+
+    private var countText: String {
+        let total = store.items.count
+        let shown = store.visible.count
+        if shown != total { return "\(shown) of \(total)" }
+        return total == 1 ? "1 item" : "\(total) items"
+    }
+}
+
+/// A keyboard key, drawn like the key caps in Apple's menus.
+struct KeyCap: View {
+    enum Size { case regular, large }
+
+    let key: String
+    var size = Size.regular
+
+    var body: some View {
+        let height: CGFloat = size == .large ? 24 : 18
+        Text(key)
+            .font(.system(size: size == .large ? 12 : 10.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, size == .large ? 7 : 4)
+            .frame(minWidth: height, minHeight: height)
+            .background {
+                RoundedRectangle(cornerRadius: height * 0.28, style: .continuous)
+                    .fill(Color.primary.opacity(0.08))
+                    .shadow(color: .black.opacity(0.15), radius: 0, y: 1)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: height * 0.28, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+            }
+    }
+}
+
+/// Keyboard icon that reveals every panel shortcut in a popover.
+private struct ShortcutsButton: View {
+    @State private var showing = false
+    @State private var hover = false
+
+    private let shortcuts: [([String], String)] = [
+        (["↩"], "Paste selected item"),
+        (["⌥", "↩"], "Copy without pasting"),
+        (["⌘", "1–9"], "Paste item 1–9"),
+        (["↑", "↓"], "Move selection"),
+        (["⇥"], "Next filter"),
+        (["⌘", "P"], "Pin or unpin"),
+        (["⌘", "E"], "View and edit"),
+        (["⌘", "⌫"], "Delete"),
+        (["⌘", ","], "Settings"),
+        (["esc"], "Clear search / close"),
+    ]
+
+    var body: some View {
+        Button { showing.toggle() } label: {
+            Image(systemName: "keyboard")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hover || showing ? .primary : .secondary)
+                .frame(width: 28, height: 24)
+                .background(Color.primary.opacity(hover || showing ? 0.08 : 0), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .help("Keyboard shortcuts")
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 9) {
+                ForEach(shortcuts, id: \.1) { keys, title in
+                    GridRow {
+                        HStack(spacing: 3) {
+                            ForEach(keys, id: \.self) { KeyCap(key: $0) }
+                        }
+                        .gridColumnAlignment(.trailing)
+                        Text(title)
+                            .font(.system(size: 12))
+                    }
+                }
+            }
+            .padding(16)
+        }
     }
 }
 
@@ -495,24 +589,6 @@ struct IconButton: View {
         .help(help)
         .onHover { hover = $0 }
         .animation(.snappy(duration: 0.15), value: hover)
-    }
-}
-
-private struct KeyHint: View {
-    let keys: String
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(keys)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 4)
-                .frame(minWidth: 18, minHeight: 16)
-                .background(Color.primary.opacity(0.08), in: .rect(cornerRadius: 4))
-            Text(label)
-        }
-        .fixedSize()
-        .foregroundStyle(.secondary)
     }
 }
 
