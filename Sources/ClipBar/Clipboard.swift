@@ -73,6 +73,10 @@ enum Clipboard {
         default:
             pasteboard.setString(item.text, forType: .string)
         }
+        if item.isLocked {
+            // Ask other clipboard tools not to record it.
+            pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+        }
     }
 
     @MainActor

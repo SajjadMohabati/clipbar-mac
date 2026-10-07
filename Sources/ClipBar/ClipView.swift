@@ -63,8 +63,8 @@ struct ClipView: View {
             if showingSaved {
                 IconButton(symbol: "plus", help: "Add a saved item") { addingSaved = true }
                     .popover(isPresented: $addingSaved, arrowEdge: .bottom) {
-                        SavedItemForm { title, value, secret in
-                            store.addSaved(title: title, text: value, secret: secret)
+                        SavedItemForm { title, value, locked in
+                            store.addSaved(title: title, text: value, locked: locked)
                             addingSaved = false
                         }
                     }
@@ -235,10 +235,7 @@ struct ClipView: View {
     @ViewBuilder
     private func menu(for item: ClipItem) -> some View {
         Button(settings.autoPaste ? "Paste" : "Copy and Close") { paste(item, true) }
-        Button("Copy") {
-            store.copy(item)
-            store.flash("Copied")
-        }
+        Button("Copy") { store.copyUnlocking(item) }
         if item.kind == .image, !item.text.isEmpty {
             Button("Copy Text from Image") { Clipboard.write(item.text) }
         }
@@ -253,7 +250,9 @@ struct ClipView: View {
         Divider()
         if showingSaved {
             Button("Edit…") { edit(item) }
-            Button("Move to History") { store.unsave(item) }
+            if !item.isLocked {
+                Button("Move to History") { store.unsave(item) }
+            }
         } else {
             Button("Move to Saved") { store.save(item) }
             Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
@@ -482,7 +481,7 @@ struct ClipRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     Text(item.preview)
-                        .font(.system(size: 11, design: item.secret == true ? .monospaced : .default))
+                        .font(.system(size: 11, design: item.isLocked ? .monospaced : .default))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
@@ -572,8 +571,8 @@ struct ItemIcon: View {
 
     @ViewBuilder
     private var content: some View {
-        if item.secret == true {
-            symbol("lock.fill", .green)
+        if item.isLocked {
+            symbol("lock.fill", .orange)
         } else {
             kindContent
         }
@@ -775,11 +774,11 @@ private struct ModeSwitch: View {
 
 /// Small form for adding something to Saved.
 private struct SavedItemForm: View {
-    let onAdd: (_ title: String, _ value: String, _ secret: Bool) -> Void
+    let onAdd: (_ title: String, _ value: String, _ locked: Bool) -> Void
 
     @State private var title = ""
     @State private var value = ""
-    @State private var secret = false
+    @State private var locked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -791,12 +790,15 @@ private struct SavedItemForm: View {
                     .lineLimit(2...6)
             }
             .textFieldStyle(.roundedBorder)
-            Toggle("Hide value in the list", isOn: $secret)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            Toggle(isOn: $locked) {
+                Label("Lock with Touch ID", systemImage: "lock.fill")
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .help("The value is kept in the Keychain and needs Touch ID or your password to use.")
             HStack {
                 Spacer()
-                Button("Add") { onAdd(title, value, secret) }
+                Button("Add") { onAdd(title, value, locked) }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!value.contains { !$0.isWhitespace })

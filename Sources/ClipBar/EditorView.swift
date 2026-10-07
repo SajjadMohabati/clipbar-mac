@@ -8,13 +8,14 @@ struct EditorView: View {
     let close: () -> Void
 
     @State private var draft: String
-    @State private var original: String
     @State private var image: NSImage?
     @State private var actualSize = false
     @State private var recognizing = false
     @State private var message: String?
     @State private var savedTitle: String
-    @State private var hidden: Bool
+    @State private var locked: Bool
+    /// What's stored right now, to tell whether there are unsaved edits.
+    @State private var baseline: (text: String, title: String, locked: Bool)
 
     init(store: ClipStore, item: ClipItem, paste: @escaping (ClipItem) -> Void, close: @escaping () -> Void) {
         self.store = store
@@ -22,23 +23,33 @@ struct EditorView: View {
         self.paste = paste
         self.close = close
         _draft = State(initialValue: item.text)
-        _original = State(initialValue: item.text)
         _savedTitle = State(initialValue: item.title ?? "")
-        _hidden = State(initialValue: item.secret == true)
+        _locked = State(initialValue: item.isLocked)
+        _baseline = State(initialValue: (item.text, item.title ?? "", item.isLocked))
     }
 
     private var item: ClipItem? { store.item(with: id) }
     private var isText: Bool { [.text, .link, .color].contains(item?.kind) }
+    private var isSaved: Bool { item.map(store.isSaved) ?? false }
+
+    private var dirty: Bool {
+        guard isText else { return false }
+        return draft != baseline.text
+            || (isSaved && (savedTitle != baseline.title || locked != baseline.locked))
+    }
 
     var body: some View {
         Group {
             if let item {
-                HStack(spacing: 0) {
-                    content(item)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Divider()
-                    inspector(item)
-                        .frame(width: 270)
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        content(item)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        Divider()
+                        inspector(item)
+                            .frame(width: 270)
+                    }
+                    bottomBar
                 }
                 .navigationTitle(title(item))
                 .toolbar { toolbar(item) }
@@ -49,12 +60,6 @@ struct EditorView: View {
         .frame(minWidth: 760, minHeight: 460)
         .overlay(alignment: .bottom) { toast }
         .onExitCommand(perform: close)
-        .onDisappear(perform: commit)
-        .task(id: draft) {
-            // Edits save on their own shortly after typing stops.
-            try? await Task.sleep(for: .milliseconds(600))
-            if !Task.isCancelled { commit() }
-        }
         .task(id: message) {
             guard message != nil else { return }
             do {
@@ -83,11 +88,13 @@ struct EditorView: View {
                 }
                 .help("Transform text")
             }
-            if store.isSaved(item) {
-                Button { store.unsave(item) } label: {
-                    Label("Move to History", systemImage: "bookmark.slash")
+            if isSaved {
+                if !item.isLocked {
+                    Button { store.unsave(item) } label: {
+                        Label("Move to History", systemImage: "bookmark.slash")
+                    }
+                    .help("Move to History")
                 }
-                .help("Move to History")
             } else {
                 Button { store.togglePin(item) } label: {
                     Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
@@ -99,8 +106,7 @@ struct EditorView: View {
                 .help("Move to Saved")
             }
             Button {
-                commit()
-                store.copy(self.item ?? item)
+                store.copy(current(item))
                 flash("Copied to clipboard")
             } label: {
                 Label("Copy", systemImage: "doc.on.doc")
@@ -117,8 +123,7 @@ struct EditorView: View {
         }
         ToolbarItem(placement: .primaryAction) {
             Button {
-                commit()
-                paste(self.item ?? item)
+                paste(current(item))
             } label: {
                 Label("Paste", systemImage: "arrow.turn.down.left")
                     .labelStyle(.titleAndIcon)
@@ -232,16 +237,22 @@ struct EditorView: View {
     private func inspector(_ item: ClipItem) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if store.isSaved(item) {
+                if isSaved {
                     InspectorSection("Saved Item") {
                         TextField("Title, e.g. Card number", text: $savedTitle)
                             .textFieldStyle(.roundedBorder)
-                        Toggle("Hide value in the list", isOn: $hidden)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
+                        Toggle(isOn: $locked) {
+                            Label("Lock with Touch ID", systemImage: "lock.fill")
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        Text(locked
+                             ? "Kept in the Keychain. Pasting, copying or opening it asks for Touch ID or your password."
+                             : "Lock it to hide the value and protect it with Touch ID.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .onChange(of: savedTitle) { store.updateSaved(id, title: savedTitle, secret: hidden) }
-                    .onChange(of: hidden) { store.updateSaved(id, title: savedTitle, secret: hidden) }
                 }
                 if let color = item.color, isText {
                     ColorInspector(color: color, copy: copyValue)
@@ -278,15 +289,7 @@ struct EditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                 default:
-                    if draft != original {
-                        InspectorSection("Changes") {
-                            Text("Edits are saved automatically.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Button("Revert to Original", systemImage: "arrow.uturn.backward") { draft = original }
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
+                    EmptyView()
                 }
             }
             .padding(16)
@@ -359,9 +362,68 @@ struct EditorView: View {
 
     // MARK: - Actions
 
-    private func commit() {
-        guard isText, let item, draft != item.text, draft.contains(where: { !$0.isWhitespace }) else { return }
-        store.updateText(id, to: draft)
+    private var canSave: Bool { dirty && draft.contains { !$0.isWhitespace } }
+
+    private func save() {
+        guard canSave else { return }
+        if isSaved {
+            store.updateSaved(id, title: savedTitle, text: draft, locked: locked)
+        } else {
+            store.updateText(id, to: draft)
+        }
+        baseline = (draft, savedTitle, locked)
+    }
+
+    /// The item as shown in the editor, including unsaved text, for copy and paste.
+    private func current(_ item: ClipItem) -> ClipItem {
+        var shown = self.item ?? item
+        if isText {
+            shown.text = draft
+            shown.secret = locked ? true : nil
+        }
+        return shown
+    }
+
+    private var bottomBar: some View {
+        HStack(spacing: 10) {
+            if dirty {
+                Label("Unsaved changes", systemImage: "circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.orange, .secondary)
+                    .imageScale(.small)
+            } else if isText {
+                Text("Edit the text, then press Save.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            if dirty {
+                Button("Cancel", action: close)
+                    .keyboardShortcut(.cancelAction)
+                    .controlSize(.large)
+                Button("Save") {
+                    save()
+                    close()
+                }
+                .keyboardShortcut("s")
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canSave)
+                .help("Save and close (⌘S)")
+            } else {
+                Button("Done", action: close)
+                    .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 
     private func flash(_ text: String) {

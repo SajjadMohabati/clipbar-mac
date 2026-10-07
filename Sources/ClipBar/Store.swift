@@ -18,8 +18,10 @@ struct ClipItem: Codable, Identifiable, Equatable, Sendable {
     var imageData: Data?
     /// Name of a saved item, e.g. "Card number".
     var title: String?
-    /// Saved items whose value is masked in the list.
+    /// Locked saved item: the value lives in the Keychain (see `Vault`) and `text` stays empty.
     var secret: Bool?
+
+    var isLocked: Bool { secret == true }
 
     var kind: Kind {
         if image != nil { return .image }
@@ -30,9 +32,7 @@ struct ClipItem: Codable, Identifiable, Equatable, Sendable {
     }
 
     var preview: String {
-        if secret == true {
-            return "•••• " + text.trimmingCharacters(in: .whitespacesAndNewlines).suffix(4)
-        }
+        if isLocked { return "••••••••" }
         return switch kind {
         case .image: text.isEmpty ? "Image" : "Image — " + Self.collapsed(text)
         case .files: (files ?? []).map { URL(fileURLWithPath: $0).lastPathComponent }.joined(separator: ", ")
@@ -271,25 +271,66 @@ final class ClipStore: ObservableObject {
             let neighbor = visible.indices.contains(index + 1) ? index + 1 : index - 1
             selection = visible.indices.contains(neighbor) ? visible[neighbor].id : nil
         }
+        if item.isLocked { Vault.delete(item.id) }
         change { $0.removeAll { $0.id == item.id } }
     }
 
     // MARK: - Saved items
 
-    func addSaved(title: String, text: String, secret: Bool) {
-        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let item = ClipItem(text: text, title: title.isEmpty ? nil : title, secret: secret ? true : nil)
+    func addSaved(title: String, text: String, locked: Bool) {
+        var item = ClipItem(title: Self.cleanTitle(title))
+        guard store(text, in: &item, locked: locked) else { return }
         commit(saved: [item] + saved)
         selection = item.id
     }
 
-    func updateSaved(_ id: UUID, title: String, secret: Bool) {
+    /// Saves edits to a saved item. A locked item's value goes to the Keychain.
+    func updateSaved(_ id: UUID, title: String, text: String, locked: Bool) {
         guard let index = saved.firstIndex(where: { $0.id == id }) else { return }
         var list = saved
-        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        list[index].title = title.isEmpty ? nil : title
-        list[index].secret = secret ? true : nil
+        list[index].title = Self.cleanTitle(title)
+        guard store(text, in: &list[index], locked: locked) else { return }
         commit(saved: list)
+    }
+
+    private func store(_ text: String, in item: inout ClipItem, locked: Bool) -> Bool {
+        if locked {
+            guard Vault.write(text, for: item.id) else {
+                flash("Couldn't save to the Keychain")
+                return false
+            }
+            item.text = ""
+            item.secret = true
+        } else {
+            Vault.delete(item.id)
+            item.text = text
+            item.secret = nil
+        }
+        return true
+    }
+
+    /// The item with its real value, asking for Touch ID or the password first if it's locked.
+    func unlocked(_ item: ClipItem) async -> ClipItem? {
+        guard item.isLocked else { return item }
+        guard await Vault.authenticate(reason: "use “\(item.title ?? "a locked item")”"),
+              let text = Vault.read(item.id) else { return nil }
+        var open = item
+        open.text = text
+        return open
+    }
+
+    /// Copies an item, unlocking it first when needed.
+    func copyUnlocking(_ item: ClipItem) {
+        Task {
+            guard let ready = await unlocked(item) else { return }
+            copy(ready)
+            flash("Copied")
+        }
+    }
+
+    private static func cleanTitle(_ title: String) -> String? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Moves a history item into Saved.
@@ -424,8 +465,17 @@ final class ClipStore: ObservableObject {
     }
 
     func load() {
+        var migrated = false
+        defer { if migrated { save() } }
         if let data = try? Data(contentsOf: Paths.saved) {
-            if let list = try? JSONDecoder().decode([ClipItem].self, from: data) {
+            if var list = try? JSONDecoder().decode([ClipItem].self, from: data) {
+                // Items hidden before locking existed still have their value in the file.
+                for index in list.indices where list[index].isLocked && !list[index].text.isEmpty {
+                    if Vault.write(list[index].text, for: list[index].id) {
+                        list[index].text = ""
+                        migrated = true
+                    }
+                }
                 saved = list
             } else {
                 try? FileManager.default.moveItem(at: Paths.saved, to: Paths.support.appending(path: "saved.corrupt.json"))
@@ -437,7 +487,6 @@ final class ClipStore: ObservableObject {
             try? FileManager.default.moveItem(at: Paths.history, to: Paths.support.appending(path: "history.corrupt.json"))
             return
         }
-        var migrated = false
         for index in list.indices {
             guard let legacy = list[index].imageData else { continue }
             list[index].image = ImageStore.store(legacy, isPNG: legacy.starts(with: [0x89, 0x50, 0x4E, 0x47]))
@@ -449,7 +498,6 @@ final class ClipStore: ObservableObject {
 
         let referenced = Set((items + saved).compactMap(\.image))
         io.async { ImageStore.purge(keeping: referenced) }
-        if migrated { save() }
     }
 
     private func save(removingImages removed: Set<String> = []) {

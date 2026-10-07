@@ -171,18 +171,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Copies the item and, when allowed, pastes it into the app that was active before ClipBar.
     private func paste(_ item: ClipItem, direct: Bool) {
-        store.copy(item)
         hide()
-        guard direct, settings.autoPaste, let target = previousApp else { return }
-        guard Clipboard.canPaste else {
-            // Without Accessibility access the item is only copied; point the user at the fix once.
-            if !askedForAccessibility {
-                askedForAccessibility = true
-                Clipboard.requestPastePermission()
-            }
-            return
-        }
         Task {
+            // Locked items need Touch ID or the password first.
+            guard let ready = await store.unlocked(item) else { return }
+            store.copy(ready)
+            guard direct, settings.autoPaste, let target = previousApp else { return }
+            guard Clipboard.canPaste else {
+                // Without Accessibility access the item is only copied; point the user at the fix once.
+                if !askedForAccessibility {
+                    askedForAccessibility = true
+                    Clipboard.requestPastePermission()
+                }
+                return
+            }
             // Wait (briefly) until the target app is active again before sending ⌘V.
             for _ in 0..<50 where NSApp.isActive || NSWorkspace.shared.frontmostApplication != target {
                 try? await Task.sleep(for: .milliseconds(10))
@@ -235,6 +237,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showEditor(_ item: ClipItem) {
         hide(restoringFocus: false)
+        Task {
+            guard let ready = await store.unlocked(item) else { return }
+            presentEditor(ready)
+        }
+    }
+
+    private func presentEditor(_ item: ClipItem) {
         let window = editorWindow ?? makeWindow(
             title: "ClipBar",
             size: NSSize(width: 900, height: 600),

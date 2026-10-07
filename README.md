@@ -17,7 +17,7 @@
 - **Everything you copy:** text, links, colors, images and files from Finder, with the source app and when you copied it
 - **Paste directly:** pick an item and ClipBar switches back to your app and pastes it (`↩`), or just copies it (`⌥↩`)
 - **Quick access:** `⌘1`–`⌘9` paste the first nine items, and arrow keys plus search get you to the rest
-- **Saved items:** a separate list for things you paste again and again (card number, student ID, address). Add them with **+**, move history items in with `⌘S`, hide sensitive values as `•••• 1234`, and they're never auto-cleaned
+- **Saved items:** a separate list for things you paste again and again (card number, student ID, address). Add them with **+**, move history items in with `⌘S`, and they're never auto-cleaned. **Lock** an item to keep its value in the macOS Keychain: pasting, copying or opening it then asks for Touch ID or your password
 - **Screenshots, automatically:** every ⇧⌘3 / ⇧⌘4 / ⇧⌘5 screenshot lands in the history and on the clipboard, ready to paste
 - **Text in images:** text inside copied screenshots is recognized on-device, so images show up in search too
 - **Filters:** All · Pinned · Text · Links · Images · Files (`⇥` to cycle)
@@ -73,7 +73,7 @@ CLIPBAR_SIGN_IDENTITY="ClipBar Local" ./build.sh install
 ## Data
 
 History is stored locally in `~/Library/Application Support/ClipBar/`:
-`history.json` holds the history, `saved.json` the saved items, and `Images/` holds copied images as PNG files.
+`history.json` holds the history, `saved.json` the saved items (locked values are in the Keychain, not in the file), and `Images/` holds copied images as PNG files.
 
 ## Project layout
 
@@ -84,6 +84,7 @@ Sources/ClipBar/
   EditorView.swift   item viewer / editor window
   SettingsView.swift settings window
   ScreenshotWatcher.swift picks up new screenshots from the screenshot folder
+  Vault.swift        Keychain storage and Touch ID for locked items
   Store.swift        history model, capture, cleanup, persistence
   Clipboard.swift    pasteboard I/O, secret detection, image storage, OCR
   Transforms.swift   text transforms
