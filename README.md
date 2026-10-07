@@ -80,7 +80,7 @@ Sources/ClipBar/
   ClipView.swift     the menu bar panel
   EditorView.swift   item viewer / editor window
   SettingsView.swift settings window
-  ScreenshotWatcher.swift picks up new screenshots via Spotlight
+  ScreenshotWatcher.swift picks up new screenshots from the screenshot folder
   Store.swift        history model, capture, cleanup, persistence
   Clipboard.swift    pasteboard I/O, secret detection, image storage, OCR
   Transforms.swift   text transforms
