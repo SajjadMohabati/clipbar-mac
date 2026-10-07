@@ -16,6 +16,10 @@ struct ClipItem: Codable, Identifiable, Equatable, Sendable {
     var uses = 0
     /// Inline image data written by ClipBar 1.x; moved into `Paths.images` on load.
     var imageData: Data?
+    /// Name of a saved item, e.g. "Card number".
+    var title: String?
+    /// Saved items whose value is masked in the list.
+    var secret: Bool?
 
     var kind: Kind {
         if image != nil { return .image }
@@ -26,7 +30,10 @@ struct ClipItem: Codable, Identifiable, Equatable, Sendable {
     }
 
     var preview: String {
-        switch kind {
+        if secret == true {
+            return "•••• " + text.trimmingCharacters(in: .whitespacesAndNewlines).suffix(4)
+        }
+        return switch kind {
         case .image: text.isEmpty ? "Image" : "Image — " + Self.collapsed(text)
         case .files: (files ?? []).map { URL(fileURLWithPath: $0).lastPathComponent }.joined(separator: ", ")
         default: Self.collapsed(text)
@@ -71,6 +78,7 @@ enum Paths {
     static let support = directory(URL.applicationSupportDirectory.appending(path: "ClipBar"))
     static let images = directory(support.appending(path: "Images"))
     static let history = support.appending(path: "history.json")
+    static let saved = support.appending(path: "saved.json")
 
     private static func directory(_ url: URL) -> URL {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -108,7 +116,12 @@ final class ClipStore: ObservableObject {
         }
     }
 
+    enum Mode { case history, saved }
+
     @Published private(set) var items: [ClipItem] = [] { didSet { refresh() } }
+    /// Things pasted again and again (card numbers, IDs…). Never cleaned up automatically.
+    @Published private(set) var saved: [ClipItem] = [] { didSet { refresh() } }
+    @Published var mode = Mode.history { didSet { refresh() } }
     @Published var query = "" { didSet { refresh() } }
     @Published var filter = Filter.all { didSet { refresh() } }
     @Published private(set) var visible: [ClipItem] = []
@@ -173,7 +186,7 @@ final class ClipStore: ObservableObject {
             }
             guard let name else { return }
             insert(ClipItem(image: name, source: source))
-            if items.first(where: { $0.image == name })?.text.isEmpty == true {
+            if item(where: { $0.image == name })?.text.isEmpty == true {
                 await recognizeText(inImage: name)
             }
         }
@@ -182,7 +195,7 @@ final class ClipStore: ObservableObject {
     func recognizeText(inImage name: String) async {
         let text = await ImageStore.recognizeText(name)
         guard !text.isEmpty else { return }
-        mutate { list in
+        change { list in
             for index in list.indices where list[index].image == name { list[index].text = text }
         }
     }
@@ -206,7 +219,7 @@ final class ClipStore: ObservableObject {
     func copy(_ item: ClipItem) {
         Clipboard.write(item)
         lastChangeCount = NSPasteboard.general.changeCount
-        mutate { list in
+        change { list in
             guard let index = list.firstIndex(where: { $0.id == item.id }) else { return }
             list[index].uses += 1
             list[index].date = .now
@@ -231,9 +244,9 @@ final class ClipStore: ObservableObject {
         selection = item.id
     }
 
-    /// Moves `id` next to `target`, adopting the target's pinned state.
+    /// Moves `id` next to `target` in the same list, adopting the target's pinned state.
     func move(_ id: UUID, nextTo target: UUID, after: Bool) {
-        mutate { list in
+        change { list in
             guard id != target, let from = list.firstIndex(where: { $0.id == id }) else { return }
             var moved = list.remove(at: from)
             guard let to = list.firstIndex(where: { $0.id == target }) else {
@@ -247,7 +260,7 @@ final class ClipStore: ObservableObject {
     }
 
     func updateText(_ id: UUID, to text: String) {
-        mutate { list in
+        change { list in
             guard let index = list.firstIndex(where: { $0.id == id }) else { return }
             list[index].text = text
         }
@@ -258,7 +271,59 @@ final class ClipStore: ObservableObject {
             let neighbor = visible.indices.contains(index + 1) ? index + 1 : index - 1
             selection = visible.indices.contains(neighbor) ? visible[neighbor].id : nil
         }
-        mutate { $0.removeAll { $0.id == item.id } }
+        change { $0.removeAll { $0.id == item.id } }
+    }
+
+    // MARK: - Saved items
+
+    func addSaved(title: String, text: String, secret: Bool) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let item = ClipItem(text: text, title: title.isEmpty ? nil : title, secret: secret ? true : nil)
+        commit(saved: [item] + saved)
+        selection = item.id
+    }
+
+    func updateSaved(_ id: UUID, title: String, secret: Bool) {
+        guard let index = saved.firstIndex(where: { $0.id == id }) else { return }
+        var list = saved
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        list[index].title = title.isEmpty ? nil : title
+        list[index].secret = secret ? true : nil
+        commit(saved: list)
+    }
+
+    /// Moves a history item into Saved.
+    func save(_ item: ClipItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        var history = items
+        var moved = history.remove(at: index)
+        moved.pinned = false
+        commit(items: history, saved: [moved] + saved)
+        flash("Moved to Saved")
+    }
+
+    /// Moves a saved item back into the history.
+    func unsave(_ item: ClipItem) {
+        guard let index = saved.firstIndex(where: { $0.id == item.id }) else { return }
+        var list = saved
+        var moved = list.remove(at: index)
+        moved.date = .now
+        var history = items
+        history.insert(moved, at: Self.insertionIndex(for: moved, in: history))
+        commit(items: history, saved: list)
+        flash("Moved to History")
+    }
+
+    func isSaved(_ item: ClipItem) -> Bool {
+        saved.contains { $0.id == item.id }
+    }
+
+    func item(with id: UUID) -> ClipItem? {
+        item { $0.id == id }
+    }
+
+    private func item(where predicate: (ClipItem) -> Bool) -> ClipItem? {
+        items.first(where: predicate) ?? saved.first(where: predicate)
     }
 
     func clear(includingPinned: Bool) {
@@ -293,6 +358,10 @@ final class ClipStore: ObservableObject {
         selection = visible[min(max(index, 0), visible.count - 1)].id
     }
 
+    func toggleMode() {
+        mode = mode == .history ? .saved : .history
+    }
+
     func cycleFilter(by delta: Int) {
         let all = Filter.allCases
         let index = all.firstIndex(of: filter) ?? 0
@@ -301,23 +370,40 @@ final class ClipStore: ObservableObject {
 
     private func refresh() {
         let terms = query.split(whereSeparator: \.isWhitespace)
-        visible = items.filter { item in
-            filter.matches(item) && terms.allSatisfy { item.text.localizedStandardContains($0) }
+        let source = mode == .history ? items.filter(filter.matches) : saved
+        visible = source.filter { item in
+            terms.allSatisfy { item.text.localizedStandardContains($0) || item.title?.localizedStandardContains($0) == true }
         }
         if !visible.contains(where: { $0.id == selection }) { selection = visible.first?.id }
     }
 
     // MARK: - Persistence
 
-    /// Applies a change, enforces the cleanup limits, and saves.
+    /// Applies a change to the history, enforcing the cleanup limits, and saves.
     private func mutate(_ change: (inout [ClipItem]) -> Void) {
         var list = items
         change(&list)
-        list = pruned(list)
-        guard list != items else { return }
-        let removedImages = Set(items.compactMap(\.image)).subtracting(list.compactMap(\.image))
-        items = list
-        save(removingImages: removedImages)
+        commit(items: list)
+    }
+
+    /// Applies a change to whichever list it affects (history and saved items alike).
+    private func change(_ body: (inout [ClipItem]) -> Void) {
+        var history = items
+        var kept = saved
+        body(&history)
+        body(&kept)
+        commit(items: history, saved: kept)
+    }
+
+    private func commit(items newItems: [ClipItem]? = nil, saved newSaved: [ClipItem]? = nil) {
+        let history = pruned(newItems ?? items)
+        let kept = newSaved ?? saved
+        guard history != items || kept != saved else { return }
+        let before = Set((items + saved).compactMap(\.image))
+        let after = Set((history + kept).compactMap(\.image))
+        items = history
+        saved = kept
+        save(removingImages: before.subtracting(after))
     }
 
     private func pruned(_ list: [ClipItem]) -> [ClipItem] {
@@ -338,6 +424,13 @@ final class ClipStore: ObservableObject {
     }
 
     func load() {
+        if let data = try? Data(contentsOf: Paths.saved) {
+            if let list = try? JSONDecoder().decode([ClipItem].self, from: data) {
+                saved = list
+            } else {
+                try? FileManager.default.moveItem(at: Paths.saved, to: Paths.support.appending(path: "saved.corrupt.json"))
+            }
+        }
         guard let data = try? Data(contentsOf: Paths.history) else { return }
         guard var list = try? JSONDecoder().decode([ClipItem].self, from: data) else {
             // Keep the unreadable file around instead of overwriting it on the next save.
@@ -354,17 +447,22 @@ final class ClipStore: ObservableObject {
         list.removeAll { $0.image == nil && $0.files == nil && $0.text.isEmpty }
         items = list.filter(\.pinned) + list.filter { !$0.pinned }
 
-        let referenced = Set(items.compactMap(\.image))
+        let referenced = Set((items + saved).compactMap(\.image))
         io.async { ImageStore.purge(keeping: referenced) }
         if migrated { save() }
     }
 
     private func save(removingImages removed: Set<String> = []) {
-        let snapshot = items
+        let history = items
+        let kept = saved
         io.async {
             ImageStore.delete(removed)
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: Paths.history, options: .atomic)
+            if let data = try? JSONEncoder().encode(history) {
+                try? data.write(to: Paths.history, options: .atomic)
+            }
+            if let data = try? JSONEncoder().encode(kept) {
+                try? data.write(to: Paths.saved, options: .atomic)
+            }
         }
     }
 

@@ -213,10 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case (kVK_Return, .option), (kVK_ANSI_KeypadEnter, .option): withSelection { paste($0, direct: false) }
         case (kVK_Escape, _):
             if store.query.isEmpty { hide() } else { store.query = "" }
-        case (kVK_Tab, []): store.cycleFilter(by: 1)
-        case (kVK_Tab, .shift): store.cycleFilter(by: -1)
+        case (kVK_Tab, []) where store.mode == .history: store.cycleFilter(by: 1)
+        case (kVK_Tab, .shift) where store.mode == .history: store.cycleFilter(by: -1)
+        case (kVK_ANSI_LeftBracket, .command): store.mode = .history
+        case (kVK_ANSI_RightBracket, .command): store.mode = .saved
         case (kVK_Delete, .command): withSelection(store.remove)
-        case (kVK_ANSI_P, .command): withSelection(store.togglePin)
+        case (kVK_ANSI_S, .command) where store.mode == .history: withSelection(store.save)
+        case (kVK_ANSI_P, .command) where store.mode == .history: withSelection(store.togglePin)
         case (kVK_ANSI_E, .command): withSelection(showEditor)
         case (kVK_ANSI_Comma, .command): openSettings()
         default: return event

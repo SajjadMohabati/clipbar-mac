@@ -19,12 +19,15 @@ struct ClipView: View {
     @State private var dragging: UUID?
     @State private var dropTarget: DropTarget?
     @State private var canPaste = Clipboard.canPaste
+    @State private var addingSaved = false
+
+    private var showingSaved: Bool { store.mode == .saved }
 
     var body: some View {
         VStack(spacing: 10) {
             header
             searchField
-            filterBar
+            if !showingSaved { filterBar }
             list
             if settings.autoPaste && !canPaste { accessBanner }
             footer
@@ -45,11 +48,7 @@ struct ClipView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "list.clipboard.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.tint)
-            Text("ClipBar")
-                .font(.system(size: 14, weight: .semibold))
+            ModeSwitch(mode: $store.mode)
             if store.paused {
                 Button("Paused") { store.paused = false }
                     .buttonStyle(.plain)
@@ -61,6 +60,30 @@ struct ClipView: View {
                     .help("Not recording new copies. Click to resume.")
             }
             Spacer()
+            if showingSaved {
+                IconButton(symbol: "plus", help: "Add a saved item") { addingSaved = true }
+                    .popover(isPresented: $addingSaved, arrowEdge: .bottom) {
+                        SavedItemForm { title, value, secret in
+                            store.addSaved(title: title, text: value, secret: secret)
+                            addingSaved = false
+                        }
+                    }
+            } else {
+                clearButtons
+            }
+            IconButton(symbol: "gearshape", help: "Settings (⌘,)", action: openSettings)
+        }
+        .padding(.horizontal, 2)
+        .padding(.top, 2)
+        .task(id: confirmingClear) {
+            guard confirmingClear else { return }
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation(.snappy(duration: 0.2)) { confirmingClear = false }
+        }
+    }
+
+    @ViewBuilder
+    private var clearButtons: some View {
             if confirmingClear {
                 Button("Clear unpinned") {
                     store.clear(includingPinned: false)
@@ -77,15 +100,6 @@ struct ClipView: View {
             IconButton(symbol: "trash", help: "Clear history", tint: .red) {
                 withAnimation(.snappy(duration: 0.2)) { confirmingClear.toggle() }
             }
-            IconButton(symbol: "gearshape", help: "Settings (⌘,)", action: openSettings)
-        }
-        .padding(.horizontal, 6)
-        .padding(.top, 2)
-        .task(id: confirmingClear) {
-            guard confirmingClear else { return }
-            try? await Task.sleep(for: .seconds(3))
-            withAnimation(.snappy(duration: 0.2)) { confirmingClear = false }
-        }
     }
 
     private var searchField: some View {
@@ -93,7 +107,7 @@ struct ClipView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            TextField("Search clipboard history", text: $store.query)
+            TextField(showingSaved ? "Search saved items" : "Search clipboard history", text: $store.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
@@ -187,7 +201,7 @@ struct ClipView: View {
 
     private func sectionTitle(at index: Int) -> String? {
         let items = store.visible
-        guard store.filter == .all, items.first?.pinned == true else { return nil }
+        guard !showingSaved, store.filter == .all, items.first?.pinned == true else { return nil }
         if index == 0 { return "Pinned" }
         return items[index - 1].pinned && !items[index].pinned ? "Recent" : nil
     }
@@ -197,9 +211,11 @@ struct ClipView: View {
             item: item,
             shortcut: index < 9 ? index + 1 : nil,
             selected: store.selection == item.id,
+            saved: showingSaved,
             dropEdge: dropTarget?.id == item.id ? dropTarget?.edge : nil,
             onTap: { paste(item, true) },
             onPin: { store.togglePin(item) },
+            onSave: { store.save(item) },
             onEdit: { edit(item) },
             onDelete: { store.remove(item) }
         )
@@ -235,14 +251,44 @@ struct ClipView: View {
             }
         }
         Divider()
-        Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
-        Button("View and Edit…") { edit(item) }
-        Button("Move to Top") { store.moveToTop(item) }
+        if showingSaved {
+            Button("Edit…") { edit(item) }
+            Button("Move to History") { store.unsave(item) }
+        } else {
+            Button("Move to Saved") { store.save(item) }
+            Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
+            Button("View and Edit…") { edit(item) }
+            Button("Move to Top") { store.moveToTop(item) }
+        }
         Divider()
         Button("Delete", role: .destructive) { store.remove(item) }
     }
 
+    @ViewBuilder
     private var emptyState: some View {
+        if showingSaved && store.query.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "bookmark")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.tertiary)
+                Text("No saved items")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("Keep things you paste again and again,\nlike a card number or student ID.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                Button("Add Item", systemImage: "plus") { addingSaved = true }
+                    .buttonStyle(.glass)
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            historyEmptyState
+        }
+    }
+
+    private var historyEmptyState: some View {
         let searching = !store.query.isEmpty
         let empty = store.filter.empty
         return VStack(spacing: 8) {
@@ -252,7 +298,7 @@ struct ClipView: View {
             Text(searching ? "No matches for “\(store.query)”" : empty.title)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
-            if store.items.isEmpty {
+            if store.items.isEmpty && !showingSaved {
                 Text("Copy something and it will show up here.")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
@@ -325,7 +371,7 @@ struct ClipView: View {
     }
 
     private var countText: String {
-        let total = store.items.count
+        let total = showingSaved ? store.saved.count : store.items.count
         let shown = store.visible.count
         if shown != total { return "\(shown) of \(total)" }
         return total == 1 ? "1 item" : "\(total) items"
@@ -369,6 +415,9 @@ private struct ShortcutsButton: View {
         (["⌘", "1–9"], "Paste item 1–9"),
         (["↑", "↓"], "Move selection"),
         (["⇥"], "Next filter"),
+        (["⌘", "["], "History"),
+        (["⌘", "]"], "Saved items"),
+        (["⌘", "S"], "Move to Saved"),
         (["⌘", "P"], "Pin or unpin"),
         (["⌘", "E"], "View and edit"),
         (["⌘", "⌫"], "Delete"),
@@ -414,9 +463,11 @@ struct ClipRow: View {
     let item: ClipItem
     let shortcut: Int?
     let selected: Bool
+    var saved = false
     let dropEdge: VerticalEdge?
     let onTap: () -> Void
     let onPin: () -> Void
+    let onSave: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -426,17 +477,30 @@ struct ClipRow: View {
         HStack(spacing: 10) {
             ItemIcon(item: item)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.preview)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                ItemMeta(item: item)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                if let title = item.title {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Text(item.preview)
+                        .font(.system(size: 11, design: item.secret == true ? .monospaced : .default))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(item.preview)
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+                    ItemMeta(item: item)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 4)
             if hover {
                 HStack(spacing: 0) {
-                    IconButton(symbol: item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Unpin" : "Pin", action: onPin)
+                    if !saved {
+                        IconButton(symbol: item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Unpin" : "Pin", action: onPin)
+                        IconButton(symbol: "bookmark", help: "Move to Saved (⌘S)", action: onSave)
+                    }
                     IconButton(symbol: "square.and.pencil", help: "View and edit", action: onEdit)
                     IconButton(symbol: "trash", help: "Delete", tint: .red, action: onDelete)
                 }
@@ -508,6 +572,15 @@ struct ItemIcon: View {
 
     @ViewBuilder
     private var content: some View {
+        if item.secret == true {
+            symbol("lock.fill", .green)
+        } else {
+            kindContent
+        }
+    }
+
+    @ViewBuilder
+    private var kindContent: some View {
         switch item.kind {
         case .image:
             if let name = item.image, let thumbnail = ImageStore.thumbnail(name) {
@@ -656,5 +729,80 @@ private struct RowDropDelegate: DropDelegate {
     private func update(_ info: DropInfo) {
         guard validateDrop(info: info) else { return }
         dropTarget = DropTarget(id: target, edge: info.location.y < ClipRow.height / 2 ? .top : .bottom)
+    }
+}
+
+// MARK: - Saved items
+
+/// History | Saved switch at the top of the panel.
+private struct ModeSwitch: View {
+    @Binding var mode: ClipStore.Mode
+    @Namespace private var selection
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment(.history, title: "History", symbol: "clock")
+            segment(.saved, title: "Saved", symbol: "bookmark.fill")
+        }
+        .padding(3)
+        .background(Color.primary.opacity(0.06), in: .capsule)
+    }
+
+    private func segment(_ value: ClipStore.Mode, title: String, symbol: String) -> some View {
+        let active = mode == value
+        return Button {
+            withAnimation(.snappy(duration: 0.25)) { mode = value }
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(active ? Color.primary : Color.secondary)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background {
+                    if active {
+                        Capsule()
+                            .fill(Color.primary.opacity(0.13))
+                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                            .matchedGeometryEffect(id: "mode", in: selection)
+                    }
+                }
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .help(value == .history ? "Clipboard history (⌘[)" : "Saved items (⌘])")
+    }
+}
+
+/// Small form for adding something to Saved.
+private struct SavedItemForm: View {
+    let onAdd: (_ title: String, _ value: String, _ secret: Bool) -> Void
+
+    @State private var title = ""
+    @State private var value = ""
+    @State private var secret = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("New Saved Item", systemImage: "bookmark.fill")
+                .font(.system(size: 13, weight: .semibold))
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("Title, e.g. Card number", text: $title)
+                TextField("Value to paste", text: $value, axis: .vertical)
+                    .lineLimit(2...6)
+            }
+            .textFieldStyle(.roundedBorder)
+            Toggle("Hide value in the list", isOn: $secret)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            HStack {
+                Spacer()
+                Button("Add") { onAdd(title, value, secret) }
+                    .buttonStyle(.glassProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!value.contains { !$0.isWhitespace })
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
     }
 }

@@ -17,6 +17,7 @@
 - **Everything you copy:** text, links, colors, images and files from Finder, with the source app and when you copied it
 - **Paste directly:** pick an item and ClipBar switches back to your app and pastes it (`↩`), or just copies it (`⌥↩`)
 - **Quick access:** `⌘1`–`⌘9` paste the first nine items, and arrow keys plus search get you to the rest
+- **Saved items:** a separate list for things you paste again and again (card number, student ID, address). Add them with **+**, move history items in with `⌘S`, hide sensitive values as `•••• 1234`, and they're never auto-cleaned
 - **Screenshots, automatically:** every ⇧⌘3 / ⇧⌘4 / ⇧⌘5 screenshot lands in the history and on the clipboard, ready to paste
 - **Text in images:** text inside copied screenshots is recognized on-device, so images show up in search too
 - **Filters:** All · Pinned · Text · Links · Images · Files (`⇥` to cycle)
@@ -39,6 +40,8 @@
 | `⌘E` | View and edit |
 | `⌘⌫` | Delete |
 | `⇥` / `⇧⇥` | Next / previous filter |
+| `⌘[` / `⌘]` | History / Saved |
+| `⌘S` | Move to Saved |
 | `⌘,` | Settings |
 | `Esc` | Clear search, then close |
 
@@ -70,7 +73,7 @@ CLIPBAR_SIGN_IDENTITY="ClipBar Local" ./build.sh install
 ## Data
 
 History is stored locally in `~/Library/Application Support/ClipBar/`:
-`history.json` holds the items and `Images/` holds copied images as PNG files.
+`history.json` holds the history, `saved.json` the saved items, and `Images/` holds copied images as PNG files.
 
 ## Project layout
 

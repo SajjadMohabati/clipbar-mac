@@ -13,6 +13,8 @@ struct EditorView: View {
     @State private var actualSize = false
     @State private var recognizing = false
     @State private var message: String?
+    @State private var savedTitle: String
+    @State private var hidden: Bool
 
     init(store: ClipStore, item: ClipItem, paste: @escaping (ClipItem) -> Void, close: @escaping () -> Void) {
         self.store = store
@@ -21,9 +23,11 @@ struct EditorView: View {
         self.close = close
         _draft = State(initialValue: item.text)
         _original = State(initialValue: item.text)
+        _savedTitle = State(initialValue: item.title ?? "")
+        _hidden = State(initialValue: item.secret == true)
     }
 
-    private var item: ClipItem? { store.items.first { $0.id == id } }
+    private var item: ClipItem? { store.item(with: id) }
     private var isText: Bool { [.text, .link, .color].contains(item?.kind) }
 
     var body: some View {
@@ -79,10 +83,21 @@ struct EditorView: View {
                 }
                 .help("Transform text")
             }
-            Button { store.togglePin(item) } label: {
-                Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
+            if store.isSaved(item) {
+                Button { store.unsave(item) } label: {
+                    Label("Move to History", systemImage: "bookmark.slash")
+                }
+                .help("Move to History")
+            } else {
+                Button { store.togglePin(item) } label: {
+                    Label(item.pinned ? "Unpin" : "Pin", systemImage: item.pinned ? "pin.slash" : "pin")
+                }
+                .help(item.pinned ? "Unpin" : "Pin")
+                Button { store.save(item) } label: {
+                    Label("Move to Saved", systemImage: "bookmark")
+                }
+                .help("Move to Saved")
             }
-            .help(item.pinned ? "Unpin" : "Pin")
             Button {
                 commit()
                 store.copy(self.item ?? item)
@@ -217,6 +232,17 @@ struct EditorView: View {
     private func inspector(_ item: ClipItem) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if store.isSaved(item) {
+                    InspectorSection("Saved Item") {
+                        TextField("Title, e.g. Card number", text: $savedTitle)
+                            .textFieldStyle(.roundedBorder)
+                        Toggle("Hide value in the list", isOn: $hidden)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                    }
+                    .onChange(of: savedTitle) { store.updateSaved(id, title: savedTitle, secret: hidden) }
+                    .onChange(of: hidden) { store.updateSaved(id, title: savedTitle, secret: hidden) }
+                }
                 if let color = item.color, isText {
                     ColorInspector(color: color, copy: copyValue)
                 }
