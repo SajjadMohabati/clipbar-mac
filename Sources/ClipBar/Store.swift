@@ -267,6 +267,14 @@ final class ClipStore: ObservableObject {
     }
 
     func remove(_ item: ClipItem) {
+        guard item.isLocked else { return delete(item) }
+        Task {
+            guard await Vault.authenticate(reason: "delete “\(item.title ?? "a locked item")”") else { return }
+            delete(item)
+        }
+    }
+
+    private func delete(_ item: ClipItem) {
         if selection == item.id, let index = visible.firstIndex(where: { $0.id == item.id }) {
             let neighbor = visible.indices.contains(index + 1) ? index + 1 : index - 1
             selection = visible.indices.contains(neighbor) ? visible[neighbor].id : nil
