@@ -17,6 +17,7 @@
 - **Everything you copy:** text, links, colors, images and files from Finder, with the source app and when you copied it
 - **Paste directly:** pick an item and ClipBar switches back to your app and pastes it (`↩`), or just copies it (`⌥↩`)
 - **Quick access:** `⌘1`–`⌘9` paste the first nine items, and arrow keys plus search get you to the rest
+- **Screenshots, automatically:** every ⇧⌘3 / ⇧⌘4 / ⇧⌘5 screenshot lands in the history and on the clipboard, ready to paste
 - **Text in images:** text inside copied screenshots is recognized on-device, so images show up in search too
 - **Filters:** All · Pinned · Text · Links · Images · Files (`⇥` to cycle)
 - **Pin and reorder:** keep snippets at the top and drag rows to reorder them. You can also drag a row into another app to drop its content there
@@ -79,6 +80,7 @@ Sources/ClipBar/
   ClipView.swift     the menu bar panel
   EditorView.swift   item viewer / editor window
   SettingsView.swift settings window
+  ScreenshotWatcher.swift picks up new screenshots via Spotlight
   Store.swift        history model, capture, cleanup, persistence
   Clipboard.swift    pasteboard I/O, secret detection, image storage, OCR
   Transforms.swift   text transforms

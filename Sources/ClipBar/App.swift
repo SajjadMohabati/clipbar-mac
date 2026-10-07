@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var previousApp: NSRunningApplication?
     private var observers: Set<AnyCancellable> = []
     private var askedForAccessibility = false
+    private lazy var screenshots = ScreenshotWatcher { [weak self] url in
+        guard let self else { return }
+        store.addScreenshot(at: url, copyToClipboard: settings.copyScreenshots)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.load()
@@ -31,6 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.store.applyLimits() }
+            .store(in: &observers)
+        settings.$captureScreenshots
+            .removeDuplicates()
+            .sink { [weak self] on in on ? self?.screenshots.start() : self?.screenshots.stop() }
             .store(in: &observers)
         store.$paused
             .sink { [weak self] paused in self?.statusItem.button?.appearsDisabled = paused }

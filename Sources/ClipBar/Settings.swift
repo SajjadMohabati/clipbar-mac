@@ -53,6 +53,8 @@ final class Settings: ObservableObject {
     @Published var cleanPinned: Bool { didSet { defaults.set(cleanPinned, forKey: "clearPinned") } }
     @Published var autoPaste: Bool { didSet { defaults.set(autoPaste, forKey: "autoPaste") } }
     @Published var skipSensitive: Bool { didSet { defaults.set(skipSensitive, forKey: "skipSensitive") } }
+    @Published var captureScreenshots: Bool { didSet { defaults.set(captureScreenshots, forKey: "captureScreenshots") } }
+    @Published var copyScreenshots: Bool { didSet { defaults.set(copyScreenshots, forKey: "copyScreenshots") } }
     @Published var shortcut: Shortcut {
         didSet {
             defaults.set(Int(shortcut.keyCode), forKey: "shortcutKeyCode")
@@ -68,6 +70,8 @@ final class Settings: ObservableObject {
             "clearPinned": false,
             "autoPaste": true,
             "skipSensitive": true,
+            "captureScreenshots": true,
+            "copyScreenshots": true,
             "shortcutKeyCode": kVK_ANSI_V,
             "shortcutModifiers": cmdKey | shiftKey,
         ])
@@ -76,6 +80,8 @@ final class Settings: ObservableObject {
         cleanPinned = defaults.bool(forKey: "clearPinned")
         autoPaste = defaults.bool(forKey: "autoPaste")
         skipSensitive = defaults.bool(forKey: "skipSensitive")
+        captureScreenshots = defaults.bool(forKey: "captureScreenshots")
+        copyScreenshots = defaults.bool(forKey: "copyScreenshots")
         shortcut = Shortcut(
             keyCode: UInt32(defaults.integer(forKey: "shortcutKeyCode")),
             modifiers: UInt32(defaults.integer(forKey: "shortcutModifiers"))

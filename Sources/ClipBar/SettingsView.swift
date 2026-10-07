@@ -42,6 +42,17 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle("Add new screenshots to history", isOn: $settings.captureScreenshots)
+                Toggle("Also copy them to the clipboard", isOn: $settings.copyScreenshots)
+                    .disabled(!settings.captureScreenshots)
+            } header: {
+                Text("Screenshots")
+            } footer: {
+                Text("Works with ⇧⌘3, ⇧⌘4 and ⇧⌘5. To get them instantly, turn off “Show Floating Thumbnail” in the ⇧⌘5 Options menu.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Ignore passwords and secrets", isOn: $settings.skipSensitive)
             } header: {
                 Text("Privacy")

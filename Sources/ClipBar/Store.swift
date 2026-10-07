@@ -148,6 +148,23 @@ final class ClipStore: ObservableObject {
         }
     }
 
+    /// Adds a screenshot file to the history and, optionally, puts it on the clipboard.
+    func addScreenshot(at url: URL, copyToClipboard: Bool) {
+        guard !paused, let data = try? Data(contentsOf: url) else { return }
+        let isPNG = url.pathExtension.lowercased() == "png"
+        if copyToClipboard {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            if isPNG {
+                pasteboard.setData(data, forType: .png)
+            } else if let image = NSImage(data: data) {
+                pasteboard.writeObjects([image])
+            }
+            lastChangeCount = pasteboard.changeCount
+        }
+        captureImage(data, isPNG: isPNG, source: "com.apple.Screenshot")
+    }
+
     private func captureImage(_ data: Data, isPNG: Bool, source: String?) {
         Task {
             // Stored on the io queue so it can't race with deletions of the same file.
