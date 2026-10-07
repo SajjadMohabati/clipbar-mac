@@ -18,6 +18,7 @@ struct ClipView: View {
     @State private var confirmingClear = false
     @State private var dragging: UUID?
     @State private var dropTarget: DropTarget?
+    @State private var canPaste = Clipboard.canPaste
 
     var body: some View {
         VStack(spacing: 10) {
@@ -25,6 +26,7 @@ struct ClipView: View {
             searchField
             filterBar
             list
+            if settings.autoPaste && !canPaste { accessBanner }
             footer
         }
         .padding(12)
@@ -35,6 +37,7 @@ struct ClipView: View {
         .onChange(of: store.focusRequest, initial: true) {
             searchFocused = true
             confirmingClear = false
+            canPaste = Clipboard.canPaste
         }
     }
 
@@ -263,6 +266,28 @@ struct ClipView: View {
     }
 
     // MARK: - Footer
+
+    private var accessBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text("Allow ClipBar in Accessibility to paste into apps. Until then items are only copied.")
+                .font(.system(size: 11))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Allow…", action: Clipboard.requestPastePermission)
+                .controlSize(.small)
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.12), in: .rect(cornerRadius: 12))
+        .task {
+            // Pick up the permission as soon as it's granted in System Settings.
+            while !Task.isCancelled && !canPaste {
+                try? await Task.sleep(for: .seconds(1))
+                canPaste = Clipboard.canPaste
+            }
+        }
+    }
 
     private var footer: some View {
         ZStack {

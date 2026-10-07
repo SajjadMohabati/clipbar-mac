@@ -128,8 +128,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.prepareForDisplay()
         positionPanel()
         panel.alphaValue = 0
+        // A non-activating panel takes the keyboard without deactivating the current app,
+        // so its focused field is still focused when the panel closes and ⌘V lands there.
         panel.makeKeyAndOrderFront(nil)
-        NSApp.activate()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.14
             panel.animator().alphaValue = 1
@@ -153,10 +154,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if restoringFocus { restoreFocus() }
     }
 
+    /// Only needed when one of ClipBar's own windows (editor, settings) took over activation.
     private func restoreFocus() {
-        guard let app = previousApp, !app.isTerminated,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier
-                == ProcessInfo.processInfo.processIdentifier else { return }
+        guard NSApp.isActive, let app = previousApp, !app.isTerminated else { return }
+        NSApp.yieldActivation(to: app)
         app.activate()
     }
 
@@ -166,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hide()
         guard direct, settings.autoPaste, let target = previousApp else { return }
         guard Clipboard.canPaste else {
+            // Without Accessibility access the item is only copied; point the user at the fix once.
             if !askedForAccessibility {
                 askedForAccessibility = true
                 Clipboard.requestPastePermission()
@@ -173,14 +175,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         Task {
-            var attempts = 0
-            while NSWorkspace.shared.frontmostApplication?.processIdentifier != target.processIdentifier,
-                  attempts < 50 {
-                attempts += 1
+            // Wait (briefly) until the target app is active again before sending ⌘V.
+            for _ in 0..<50 where NSApp.isActive || NSWorkspace.shared.frontmostApplication != target {
                 try? await Task.sleep(for: .milliseconds(10))
             }
-            try? await Task.sleep(for: .milliseconds(40))
+            try? await Task.sleep(for: .milliseconds(50))
+            // The ClipBar shortcut may itself be ⌘V; free it so the synthetic ⌘V reaches the app.
+            HotKey.shared.unregister()
             Clipboard.pressPaste()
+            try? await Task.sleep(for: .milliseconds(150))
+            HotKey.shared.register(settings.shortcut)
         }
     }
 

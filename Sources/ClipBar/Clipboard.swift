@@ -85,8 +85,12 @@ enum Clipboard {
 
     static var canPaste: Bool { AXIsProcessTrusted() }
 
+    /// Adds ClipBar to the Accessibility list and opens that pane of System Settings.
     static func requestPastePermission() {
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     static func pressPaste() {
@@ -94,7 +98,7 @@ enum Clipboard {
         for keyDown in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: keyDown)
             event?.flags = .maskCommand
-            event?.post(tap: .cgAnnotatedSessionEventTap)
+            event?.post(tap: .cgSessionEventTap)
         }
     }
 }
