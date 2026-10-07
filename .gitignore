@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+ClipBar.app/
+.DS_Store
