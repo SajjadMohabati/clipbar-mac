@@ -55,7 +55,16 @@ cd clipbar-mac
 
 To paste directly into other apps, ClipBar needs **Accessibility** access
 (System Settings → Privacy & Security → Accessibility). Without it, ClipBar still copies the item
-and you press `⌘V` yourself. The app is ad-hoc signed, so after a rebuild macOS may ask for access again.
+and you press `⌘V` yourself.
+
+By default the app is ad-hoc signed, so macOS treats every rebuild as a new app and the old
+Accessibility entry stops working (it stays switched on but does nothing). Remove it with **−** and add
+ClipBar again. To avoid this, sign with a stable certificate: in Keychain Access choose
+*Certificate Assistant → Create a Certificate…*, name it `ClipBar Local`, set the type to **Code Signing**, then:
+
+```bash
+CLIPBAR_SIGN_IDENTITY="ClipBar Local" ./build.sh install
+```
 
 ## Data
 

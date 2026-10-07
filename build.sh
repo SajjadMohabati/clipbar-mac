@@ -1,6 +1,10 @@
 #!/bin/bash
 # Usage: ./build.sh            build ClipBar.app
 #        ./build.sh install    build, copy to /Applications and launch
+#
+# Signing: set CLIPBAR_SIGN_IDENTITY to a code-signing certificate name (e.g. a self-signed
+# "ClipBar Local" made in Keychain Access) so the Accessibility permission survives rebuilds.
+# Without it the app is ad-hoc signed and macOS asks for the permission again after each build.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -13,7 +17,7 @@ cp "$(swift build -c release --show-bin-path)/ClipBar" "$APP/Contents/MacOS/Clip
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
-codesign --force --sign - --timestamp=none "$APP"
+codesign --force --sign "${CLIPBAR_SIGN_IDENTITY:--}" --timestamp=none "$APP"
 echo "built $APP"
 
 if [[ "${1:-}" == "install" ]]; then
