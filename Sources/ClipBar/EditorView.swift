@@ -123,7 +123,7 @@ struct EditorView: View {
                 Label("Paste", systemImage: "arrow.turn.down.left")
                     .labelStyle(.titleAndIcon)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.borderedProminent)
             .keyboardShortcut(.return, modifiers: .command)
             .help("Paste into the previous app (⌘↩)")
         }
