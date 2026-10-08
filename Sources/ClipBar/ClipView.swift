@@ -127,12 +127,12 @@ struct ClipView: View {
     }
 
     private var filterBar: some View {
-        GlassEffectContainer(spacing: 8) {
+        GlassEffectContainer(spacing: 16) {
             HStack(spacing: 2) {
                 ForEach(ClipStore.Filter.allCases) { filter in
                     let active = store.filter == filter
                     Button {
-                        withAnimation(.bouncy(duration: 0.35)) { store.filter = filter }
+                        withAnimation(.smooth(duration: 0.4)) { store.filter = filter }
                     } label: {
                         Text(filter.rawValue)
                             .font(.system(size: 11, weight: active ? .semibold : .medium))
@@ -140,15 +140,7 @@ struct ClipView: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .contentShape(Capsule())
-                            .background {
-                                // The glass lens slides between chips.
-                                if active {
-                                    Capsule()
-                                        .fill(.clear)
-                                        .glassEffect(.regular.tint(.accentColor.opacity(0.25)).interactive(), in: .capsule)
-                                        .matchedGeometryEffect(id: "chip", in: chips)
-                                }
-                            }
+                            .chipGlass(active, id: filter, in: chips)
                     }
                     .buttonStyle(.plain)
                 }
@@ -359,13 +351,10 @@ struct ClipView: View {
                             .font(.system(size: 12, weight: .medium))
                         KeyCap(key: "↩")
                     }
-                    .padding(.leading, 10)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 3)
-                    .contentShape(.capsule)
-                    .glassEffect(.regular.tint(.accentColor.opacity(0.2)).interactive(), in: .capsule)
+                    .padding(.trailing, -6)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
+                .controlSize(.small)
             }
             ShortcutsButton()
         }
@@ -810,5 +799,18 @@ private struct SavedItemForm: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+}
+
+private extension View {
+    /// The selected filter wears the glass; the container morphs it from chip to chip.
+    @ViewBuilder
+    func chipGlass(_ active: Bool, id: some Hashable & Sendable, in namespace: Namespace.ID) -> some View {
+        if active {
+            glassEffect(.regular.tint(.accentColor.opacity(0.18)).interactive(), in: .capsule)
+                .glassEffectID(id, in: namespace)
+        } else {
+            self
+        }
     }
 }
