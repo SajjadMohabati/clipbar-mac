@@ -136,8 +136,7 @@ struct ClipView: View {
     }
 
     private var filterBar: some View {
-        GlassEffectContainer(spacing: 16) {
-            HStack(spacing: 2) {
+        HStack(spacing: 2) {
                 ForEach(ClipStore.Filter.allCases) { filter in
                     let active = store.filter == filter
                     Button {
@@ -149,14 +148,13 @@ struct ClipView: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .contentShape(Capsule())
-                            .chipGlass(active, id: filter, in: chips)
+                            .selectionGlass(active, id: "filter", in: chips)
                     }
                     .buttonStyle(.plain)
                 }
                 Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 2)
         }
+        .padding(.horizontal, 2)
     }
 
     // MARK: - List
@@ -518,20 +516,19 @@ struct ClipRow: View {
         .padding(.horizontal, 8)
         .frame(height: Self.height)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(fill)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.35) : .clear, lineWidth: 1)
-                }
+            if selected {
+                GlassHighlight(shape: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill)
+            }
         }
         .overlay(alignment: dropEdge == .top ? .top : .bottom) {
             if dropEdge != nil {
                 Capsule()
-                    .fill(Color.accentColor)
+                    .fill(Color.primary.opacity(0.7))
                     .frame(height: 3)
                     .padding(.horizontal, 6)
-                    .shadow(color: .accentColor.opacity(0.5), radius: 4)
+                    .shadow(color: .white.opacity(0.4), radius: 4)
                     .offset(y: dropEdge == .top ? -2 : 2)
             }
         }
@@ -544,7 +541,6 @@ struct ClipRow: View {
     }
 
     private var fill: Color {
-        if selected { return Color.accentColor.opacity(0.2) }
         if hover || dropEdge != nil { return Color.primary.opacity(0.06) }
         return .clear
     }
@@ -566,9 +562,9 @@ struct ItemIcon: View {
                 if item.pinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .frame(width: 14, height: 14)
-                        .background(Circle().fill(Color.accentColor))
+                        .glassEffect(.regular, in: .circle)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -700,10 +696,10 @@ private struct ListPage: Hashable {
 }
 
 extension Animation {
-    /// Quick, calm motion with no overshoot for glass shapes moving and morphing.
-    static let glass = Animation.smooth(duration: 0.35)
+    /// Fast start, long soft landing (like macOS's own segmented controls).
+    static let glass = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.32)
     /// Short soft fades for hover, selection and small state changes.
-    static let gentle = Animation.easeOut(duration: 0.2)
+    static let gentle = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)
 }
 
 // MARK: - Drag and drop
@@ -781,14 +777,12 @@ private struct ModeSwitch: View {
     @Namespace private var selection
 
     var body: some View {
-        GlassEffectContainer(spacing: 12) {
-            HStack(spacing: 2) {
-                segment(.history, title: "History", symbol: "clock")
-                segment(.saved, title: "Saved", symbol: "bookmark.fill")
-            }
-            .padding(3)
-            .background(Color.primary.opacity(0.06), in: .capsule)
+        HStack(spacing: 2) {
+            segment(.history, title: "History", symbol: "clock")
+            segment(.saved, title: "Saved", symbol: "bookmark.fill")
         }
+        .padding(3)
+        .background(Color.primary.opacity(0.06), in: .capsule)
     }
 
     private func segment(_ value: ClipStore.Mode, title: String, symbol: String) -> some View {
@@ -799,11 +793,10 @@ private struct ModeSwitch: View {
             Label(title, systemImage: symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(active ? Color.primary : Color.secondary)
-                .symbolEffect(.bounce, value: active)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)
                 .contentShape(.capsule)
-                .chipGlass(active, id: value, in: selection, tint: .clear)
+                .selectionGlass(active, id: "mode", in: selection)
         }
         .buttonStyle(.plain)
         .help(value == .history ? "Clipboard history (⌘[)" : "Saved items (⌘])")
@@ -848,17 +841,35 @@ private struct SavedItemForm: View {
 }
 
 private extension View {
-    /// The selected filter wears the glass; the container morphs it from chip to chip.
+    /// A clear glass pill behind the selected segment that slides to the next one.
     @ViewBuilder
-    func chipGlass(
-        _ active: Bool, id: some Hashable & Sendable, in namespace: Namespace.ID,
-        tint: Color = .accentColor.opacity(0.18)
-    ) -> some View {
-        if active {
-            glassEffect(.regular.tint(tint), in: .capsule)
-                .glassEffectID(id, in: namespace)
-        } else {
-            self
+    func selectionGlass(_ active: Bool, id: String, in namespace: Namespace.ID) -> some View {
+        background {
+            if active {
+                GlassHighlight(shape: Capsule())
+                    .matchedGeometryEffect(id: id, in: namespace)
+            }
         }
+    }
+}
+
+/// Clear, colourless glass: a faint fill, a bright rim fading downwards and a soft shadow.
+struct GlassHighlight<S: InsettableShape>: View {
+    let shape: S
+    var strength: Double = 1
+
+    var body: some View {
+        shape
+            .fill(Color.primary.opacity(0.09 * strength))
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.32 * strength), .white.opacity(0.06 * strength)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.8
+                )
+            }
+            .shadow(color: .black.opacity(0.14 * strength), radius: 4, y: 1.5)
     }
 }
