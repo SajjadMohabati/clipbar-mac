@@ -248,10 +248,12 @@ struct SettingsView: View {
             .buttonStyle(.glass)
             .padding(.top, 6)
             Spacer()
-            Text("Made by Sajjad Mohabati")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
-                .padding(.bottom, 18)
+            Link(destination: URL(string: "https://github.com/SajjadMohabati")!) {
+                Text("Created by **Sajjad Mohabati**")
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 18)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

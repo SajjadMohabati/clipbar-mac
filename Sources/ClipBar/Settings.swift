@@ -67,6 +67,11 @@ final class Settings: ObservableObject {
 
     private init() {
         let defaults = UserDefaults.standard
+        // Keep the settings of builds made before the app had its public bundle identifier.
+        if defaults.object(forKey: "shortcutKeyCode") == nil,
+           let old = defaults.persistentDomain(forName: "local.clipbar.mac") {
+            for (key, value) in old { defaults.set(value, forKey: key) }
+        }
         defaults.register(defaults: [
             "clearAfterDays": 30,
             "clearAfterCount": 500,

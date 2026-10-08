@@ -750,7 +750,7 @@ extension Animation {
 // MARK: - Drag and drop
 
 extension UTType {
-    static let clipbarItem = UTType(exportedAs: "local.clipbar.item")
+    static let clipbarItem = UTType(exportedAs: "io.github.sajjadmohabati.clipbar.item")
 }
 
 extension ClipItem {

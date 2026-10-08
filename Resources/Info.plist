@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.clipbar.mac</string>
+	<string>io.github.sajjadmohabati.clipbar</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0</string>
+	<string>2.1</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
@@ -29,7 +29,13 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Sajjad Mohabati</string>
+	<string>Created by Sajjad Mohabati · github.com/SajjadMohabati</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>
@@ -40,7 +46,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>local.clipbar.item</string>
+			<string>io.github.sajjadmohabati.clipbar.item</string>
 			<key>UTTypeDescription</key>
 			<string>ClipBar Item</string>
 			<key>UTTypeConformsTo</key>

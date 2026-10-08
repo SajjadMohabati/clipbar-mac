@@ -41,13 +41,57 @@ fi
 
 if [[ "${1:-}" == "dmg" ]]; then
     VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
+    NAME="ClipBar $VERSION"
     DMG="dist/ClipBar-$VERSION.dmg"
-    STAGE=$(mktemp -d)
-    trap 'rm -rf "$STAGE"' EXIT
-    cp -R "$APP" "$STAGE/"
-    ln -s /Applications "$STAGE/Applications"
+    WORK=$(mktemp -d)
+    trap 'hdiutil detach "/Volumes/$NAME" -quiet 2>/dev/null || true; rm -rf "$WORK"' EXIT
+    hdiutil detach "/Volumes/$NAME" -quiet 2>/dev/null || true
+
+    # A writable image first, so Finder can store the window layout in it.
+    hdiutil create -volname "$NAME" -size 60m -fs HFS+ -ov "$WORK/rw.dmg" >/dev/null
+    hdiutil attach "$WORK/rw.dmg" -nobrowse -noautoopen >/dev/null
+    VOLUME="/Volumes/$NAME"
+    cp -R "$APP" "$VOLUME/"
+    ln -s /Applications "$VOLUME/Applications"
+    mkdir "$VOLUME/.background"
+    cp Resources/dmg-background.tiff "$VOLUME/.background/background.tiff"
+
+    # The window: background with the drag arrow, big icons, nothing else.
+    hdiutil detach "$VOLUME" -quiet
+    hdiutil attach "$WORK/rw.dmg" -noautoopen >/dev/null
+    osascript <<APPLESCRIPT
+tell application "Finder"
+    tell disk "$NAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {200, 120, 860, 548}
+        set options to the icon view options of container window
+        set arrangement of options to not arranged
+        set icon size of options to 128
+        set text size of options to 13
+        set background picture of options to file ".background:background.tiff"
+        set position of item "ClipBar.app" of container window to {180, 186}
+        set position of item "Applications" of container window to {480, 186}
+        update without registering applications
+        delay 1
+        -- Finder sometimes ignores the first resize while the window is opening.
+        set the bounds of container window to {200, 120, 860, 548}
+        delay 1
+        get the bounds of container window
+        close
+    end tell
+end tell
+APPLESCRIPT
+    cp Resources/AppIcon.icns "$VOLUME/.VolumeIcon.icns"
+    SetFile -a C "$VOLUME"
+    rm -rf "$VOLUME/.fseventsd"
+    sync
+    hdiutil detach "$VOLUME" -quiet
+
     mkdir -p dist
     rm -f "$DMG"
-    hdiutil create -volname "ClipBar $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+    hdiutil convert "$WORK/rw.dmg" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
     echo "packaged $DMG ($(du -h "$DMG" | cut -f1))"
 fi
