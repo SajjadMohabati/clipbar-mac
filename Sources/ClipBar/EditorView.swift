@@ -356,7 +356,7 @@ struct EditorView: View {
                 .padding(.vertical, 8)
                 .glassEffect(.regular, in: .capsule)
                 .padding(.bottom, 18)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.blurReplace.combined(with: .move(edge: .bottom)))
         }
     }
 
@@ -403,20 +403,22 @@ struct EditorView: View {
             if dirty {
                 Button("Cancel", action: close)
                     .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.glass)
+                    .tint(.clear)
                     .controlSize(.large)
                 Button("Save") {
                     save()
                     close()
                 }
                 .keyboardShortcut("s")
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .disabled(!canSave)
                 .help("Save and close (⌘S)")
             } else {
                 Button("Done", action: close)
                     .keyboardShortcut(.cancelAction)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
                     .controlSize(.large)
             }
         }

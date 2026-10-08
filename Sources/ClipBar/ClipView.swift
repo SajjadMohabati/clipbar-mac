@@ -15,6 +15,7 @@ struct ClipView: View {
 
     @FocusState private var searchFocused: Bool
     @Namespace private var chips
+    @Namespace private var glass
     @State private var confirmingClear = false
     @State private var dragging: UUID?
     @State private var dropTarget: DropTarget?
@@ -47,59 +48,67 @@ struct ClipView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 8) {
-            ModeSwitch(mode: $store.mode)
-            if store.paused {
-                Button("Paused") { store.paused = false }
-                    .buttonStyle(.plain)
+        GlassEffectContainer(spacing: 12) {
+            HStack(spacing: 8) {
+                ModeSwitch(mode: $store.mode)
+                if store.paused {
+                    Button("Paused", systemImage: "pause.fill") {
+                        withAnimation(.smooth) { store.paused = false }
+                    }
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(.orange.opacity(0.15)))
+                    .buttonStyle(.glass)
+                    .tint(.clear)
+                    .controlSize(.small)
+                    .glassEffectID("paused", in: glass)
                     .help("Not recording new copies. Click to resume.")
-            }
-            Spacer()
-            if showingSaved {
-                IconButton(symbol: "plus", help: "Add a saved item") { addingSaved = true }
-                    .popover(isPresented: $addingSaved, arrowEdge: .bottom) {
-                        SavedItemForm { title, value, locked in
-                            store.addSaved(title: title, text: value, locked: locked)
-                            addingSaved = false
+                }
+                Spacer()
+                if showingSaved {
+                    GlassIconButton(symbol: "plus", help: "Add a saved item") { addingSaved = true }
+                        .glassEffectID("action", in: glass)
+                        .popover(isPresented: $addingSaved, arrowEdge: .bottom) {
+                            SavedItemForm { title, value, locked in
+                                store.addSaved(title: title, text: value, locked: locked)
+                                addingSaved = false
+                            }
                         }
-                    }
-            } else {
-                clearButtons
+                } else {
+                    clearButtons
+                }
+                GlassIconButton(symbol: "gearshape", help: "Settings (⌘,)", action: openSettings)
+                    .glassEffectID("settings", in: glass)
             }
-            IconButton(symbol: "gearshape", help: "Settings (⌘,)", action: openSettings)
         }
         .padding(.horizontal, 2)
         .padding(.top, 2)
         .task(id: confirmingClear) {
             guard confirmingClear else { return }
             try? await Task.sleep(for: .seconds(3))
-            withAnimation(.snappy(duration: 0.2)) { confirmingClear = false }
+            withAnimation(.smooth(duration: 0.35)) { confirmingClear = false }
         }
     }
 
     @ViewBuilder
     private var clearButtons: some View {
             if confirmingClear {
+                // Grows out of the trash button as a drop of red glass.
                 Button("Clear unpinned") {
-                    store.clear(includingPinned: false)
-                    confirmingClear = false
+                    withAnimation(.smooth(duration: 0.35)) {
+                        store.clear(includingPinned: false)
+                        confirmingClear = false
+                    }
                 }
-                .buttonStyle(.plain)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(.red))
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .buttonStyle(.glassProminent)
+                .tint(.red)
+                .controlSize(.small)
+                .glassEffectID("confirm", in: glass)
             }
-            IconButton(symbol: "trash", help: "Clear history", tint: .red) {
-                withAnimation(.snappy(duration: 0.2)) { confirmingClear.toggle() }
+            GlassIconButton(symbol: confirmingClear ? "xmark" : "trash", help: confirmingClear ? "Cancel" : "Clear history") {
+                withAnimation(.smooth(duration: 0.35)) { confirmingClear.toggle() }
             }
+            .glassEffectID("action", in: glass)
     }
 
     private var searchField: some View {
@@ -132,7 +141,7 @@ struct ClipView: View {
                 ForEach(ClipStore.Filter.allCases) { filter in
                     let active = store.filter == filter
                     Button {
-                        withAnimation(.smooth(duration: 0.4)) { store.filter = filter }
+                        withAnimation(.bouncy(duration: 0.45, extraBounce: 0.05)) { store.filter = filter }
                     } label: {
                         Text(filter.rawValue)
                             .font(.system(size: 11, weight: active ? .semibold : .medium))
@@ -332,31 +341,42 @@ struct ClipView: View {
                 if let toast = store.toast {
                     Label(toast, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.secondary)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .symbolEffect(.bounce, options: .nonRepeating)
+                        .transition(.blurReplace)
                 } else {
                     Text(countText)
                         .foregroundStyle(.tertiary)
-                        .transition(.opacity)
+                        .contentTransition(.numericText())
+                        .transition(.blurReplace)
                 }
             }
             .font(.system(size: 11, weight: .medium))
-            .animation(.snappy(duration: 0.25), value: store.toast)
+            .animation(.smooth(duration: 0.3), value: store.toast)
+            .animation(.smooth(duration: 0.3), value: countText)
 
             Spacer()
 
-            if let item = store.selectedItem {
-                Button { paste(item, true) } label: {
-                    HStack(spacing: 6) {
-                        Text(settings.autoPaste ? "Paste" : "Copy")
-                            .font(.system(size: 12, weight: .medium))
-                        KeyCap(key: "↩")
+            GlassEffectContainer(spacing: 10) {
+                HStack(spacing: 6) {
+                    if let item = store.selectedItem {
+                        Button { paste(item, true) } label: {
+                            HStack(spacing: 6) {
+                                Text(settings.autoPaste ? "Paste" : "Copy")
+                                    .font(.system(size: 12, weight: .semibold))
+                                KeyCap(key: "↩")
+                            }
+                            .padding(.trailing, -6)
+                        }
+                        .buttonStyle(.glass)
+                        .tint(.clear)
+                        .controlSize(.small)
+                        .glassEffectID("paste", in: glass)
                     }
-                    .padding(.trailing, -6)
+                    ShortcutsButton()
+                        .glassEffectID("shortcuts", in: glass)
                 }
-                .buttonStyle(.glass)
-                .controlSize(.small)
             }
-            ShortcutsButton()
+            .animation(.smooth(duration: 0.35), value: store.selectedItem == nil)
         }
         .padding(.horizontal, 6)
         .frame(height: 26)
@@ -399,7 +419,6 @@ struct KeyCap: View {
 /// Keyboard icon that reveals every panel shortcut in a popover.
 private struct ShortcutsButton: View {
     @State private var showing = false
-    @State private var hover = false
 
     private let shortcuts: [([String], String)] = [
         (["↩"], "Paste selected item"),
@@ -418,17 +437,7 @@ private struct ShortcutsButton: View {
     ]
 
     var body: some View {
-        Button { showing.toggle() } label: {
-            Image(systemName: "keyboard")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(hover || showing ? .primary : .secondary)
-                .frame(width: 28, height: 24)
-                .background(Color.primary.opacity(hover || showing ? 0.08 : 0), in: .capsule)
-                .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .help("Keyboard shortcuts")
+        GlassIconButton(symbol: "keyboard", help: "Keyboard shortcuts") { showing.toggle() }
         .popover(isPresented: $showing, arrowEdge: .bottom) {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 9) {
                 ForEach(shortcuts, id: \.1) { keys, title in
@@ -496,7 +505,7 @@ struct ClipRow: View {
                     IconButton(symbol: "square.and.pencil", help: "View and edit", action: onEdit)
                     IconButton(symbol: "trash", help: "Delete", tint: .red, action: onDelete)
                 }
-                .transition(.opacity)
+                .transition(.blurReplace)
             } else if let shortcut {
                 Text("⌘\(shortcut)")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -646,6 +655,7 @@ struct IconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(hover ? (tint ?? .primary) : .secondary)
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 24, height: 24)
                 .background(Circle().fill(Color.primary.opacity(hover ? 0.1 : 0)))
                 .contentShape(Circle())
@@ -654,6 +664,30 @@ struct IconButton: View {
         .help(help)
         .onHover { hover = $0 }
         .animation(.snappy(duration: 0.15), value: hover)
+    }
+}
+
+/// Round Liquid Glass button for the panel's floating controls.
+struct GlassIconButton: View {
+    let symbol: String
+    let help: String
+    let action: () -> Void
+
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hover ? .primary : .secondary)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 28, height: 28)
+                .contentShape(.circle)
+                .glassEffect(.regular.interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .help(help)
     }
 }
 
@@ -732,33 +766,29 @@ private struct ModeSwitch: View {
     @Namespace private var selection
 
     var body: some View {
-        HStack(spacing: 2) {
-            segment(.history, title: "History", symbol: "clock")
-            segment(.saved, title: "Saved", symbol: "bookmark.fill")
+        GlassEffectContainer(spacing: 12) {
+            HStack(spacing: 2) {
+                segment(.history, title: "History", symbol: "clock")
+                segment(.saved, title: "Saved", symbol: "bookmark.fill")
+            }
+            .padding(3)
+            .background(Color.primary.opacity(0.06), in: .capsule)
         }
-        .padding(3)
-        .background(Color.primary.opacity(0.06), in: .capsule)
     }
 
     private func segment(_ value: ClipStore.Mode, title: String, symbol: String) -> some View {
         let active = mode == value
         return Button {
-            withAnimation(.snappy(duration: 0.25)) { mode = value }
+            withAnimation(.bouncy(duration: 0.45, extraBounce: 0.05)) { mode = value }
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(active ? Color.primary : Color.secondary)
+                .symbolEffect(.bounce, value: active)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)
-                .background {
-                    if active {
-                        Capsule()
-                            .fill(Color.primary.opacity(0.13))
-                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                            .matchedGeometryEffect(id: "mode", in: selection)
-                    }
-                }
                 .contentShape(.capsule)
+                .chipGlass(active, id: value, in: selection, tint: .clear)
         }
         .buttonStyle(.plain)
         .help(value == .history ? "Clipboard history (⌘[)" : "Saved items (⌘])")
@@ -805,9 +835,12 @@ private struct SavedItemForm: View {
 private extension View {
     /// The selected filter wears the glass; the container morphs it from chip to chip.
     @ViewBuilder
-    func chipGlass(_ active: Bool, id: some Hashable & Sendable, in namespace: Namespace.ID) -> some View {
+    func chipGlass(
+        _ active: Bool, id: some Hashable & Sendable, in namespace: Namespace.ID,
+        tint: Color = .accentColor.opacity(0.18)
+    ) -> some View {
         if active {
-            glassEffect(.regular.tint(.accentColor.opacity(0.18)).interactive(), in: .capsule)
+            glassEffect(.regular.tint(tint), in: .capsule)
                 .glassEffectID(id, in: namespace)
         } else {
             self
