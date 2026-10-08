@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 
 struct ClipView: View {
     /// Transparent room around the card for its shadow.
-    static let margin: CGFloat = 24
+    /// Wide enough that the shadow fades out completely before the window edge.
+    static let margin: CGFloat = 48
     static let size = CGSize(width: 400 + margin * 2, height: 540 + margin * 2)
 
     @ObservedObject var store: ClipStore
@@ -36,7 +37,8 @@ struct ClipView: View {
         .padding(12)
         .frame(width: Self.size.width - Self.margin * 2, height: Self.size.height - Self.margin * 2)
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
-        .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
         .padding(Self.margin)
         .onChange(of: store.focusRequest, initial: true) {
             searchFocused = true
