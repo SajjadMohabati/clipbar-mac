@@ -131,8 +131,8 @@ struct ClipView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.06), in: .rect(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.07)))
+        .background(GlassHighlight(shape: RoundedRectangle(cornerRadius: 12, style: .continuous), strength: searchFocused ? 1 : 0.8))
+        .animation(.gentle, value: searchFocused)
     }
 
     private var filterBar: some View {
@@ -683,7 +683,7 @@ private struct PasteButton: View {
             .padding(.leading, 12)
             .padding(.trailing, 5)
             .frame(height: 28)
-            .background(GlassHighlight(shape: Capsule(), strength: hover ? 1.4 : 1))
+            .background(GlassHighlight(shape: Capsule()).opacity(hover ? 1 : 0))
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
@@ -707,7 +707,7 @@ struct GlassIconButton: View {
                 .foregroundStyle(hover ? .primary : .secondary)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
-                .background(GlassHighlight(shape: Circle(), strength: hover ? 1.4 : 1))
+                .background(GlassHighlight(shape: Circle()).opacity(hover ? 1 : 0))
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
