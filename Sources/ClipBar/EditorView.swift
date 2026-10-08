@@ -64,7 +64,7 @@ struct EditorView: View {
             guard message != nil else { return }
             do {
                 try await Task.sleep(for: .seconds(1.8))
-                withAnimation { message = nil }
+                withAnimation(.gentle) { message = nil }
             } catch {}
         }
     }
@@ -184,9 +184,9 @@ struct EditorView: View {
                 ProgressView()
             }
         }
-        .onTapGesture(count: 2) { withAnimation(.snappy) { actualSize.toggle() } }
+        .onTapGesture(count: 2) { withAnimation(.gentle) { actualSize.toggle() } }
         .overlay(alignment: .bottom) {
-            Picker("Zoom", selection: $actualSize.animation(.snappy)) {
+            Picker("Zoom", selection: $actualSize.animation(.glass)) {
                 Image(systemName: "arrow.down.right.and.arrow.up.left").tag(false)
                 Image(systemName: "1.magnifyingglass").tag(true)
             }
@@ -429,7 +429,7 @@ struct EditorView: View {
     }
 
     private func flash(_ text: String) {
-        withAnimation(.snappy) { message = text }
+        withAnimation(.gentle) { message = text }
     }
 
     private func copyValue(_ text: String) {

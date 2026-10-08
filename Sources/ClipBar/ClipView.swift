@@ -53,7 +53,7 @@ struct ClipView: View {
                 ModeSwitch(mode: $store.mode)
                 if store.paused {
                     Button("Paused", systemImage: "pause.fill") {
-                        withAnimation(.smooth) { store.paused = false }
+                        withAnimation(.glass) { store.paused = false }
                     }
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.orange)
@@ -85,7 +85,7 @@ struct ClipView: View {
         .task(id: confirmingClear) {
             guard confirmingClear else { return }
             try? await Task.sleep(for: .seconds(3))
-            withAnimation(.smooth(duration: 0.35)) { confirmingClear = false }
+            withAnimation(.glass) { confirmingClear = false }
         }
     }
 
@@ -94,7 +94,7 @@ struct ClipView: View {
             if confirmingClear {
                 // Grows out of the trash button as a drop of red glass.
                 Button("Clear unpinned") {
-                    withAnimation(.smooth(duration: 0.35)) {
+                    withAnimation(.glass) {
                         store.clear(includingPinned: false)
                         confirmingClear = false
                     }
@@ -106,7 +106,7 @@ struct ClipView: View {
                 .glassEffectID("confirm", in: glass)
             }
             GlassIconButton(symbol: confirmingClear ? "xmark" : "trash", help: confirmingClear ? "Cancel" : "Clear history") {
-                withAnimation(.smooth(duration: 0.35)) { confirmingClear.toggle() }
+                withAnimation(.glass) { confirmingClear.toggle() }
             }
             .glassEffectID("action", in: glass)
     }
@@ -141,7 +141,7 @@ struct ClipView: View {
                 ForEach(ClipStore.Filter.allCases) { filter in
                     let active = store.filter == filter
                     Button {
-                        withAnimation(.bouncy(duration: 0.45, extraBounce: 0.05)) { store.filter = filter }
+                        withAnimation(.glass) { store.filter = filter }
                     } label: {
                         Text(filter.rawValue)
                             .font(.system(size: 11, weight: active ? .semibold : .medium))
@@ -186,15 +186,18 @@ struct ClipView: View {
                     }
                 }
                 .scrollIndicators(.never)
+                // A new filter or mode cross-fades the list instead of sliding rows around.
+                .id(ListPage(mode: store.mode, filter: store.filter))
+                .transition(.opacity)
                 .onChange(of: store.focusRequest, initial: true) {
                     proxy.scrollTo(store.visible.first?.id, anchor: .top)
                 }
                 .onChange(of: store.selection) { _, id in
                     guard let id else { return }
-                    withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(id) }
+                    withAnimation(.gentle) { proxy.scrollTo(id) }
                 }
             }
-            .animation(.snappy(duration: 0.25), value: store.visible.map(\.id))
+            .animation(.glass, value: store.visible.map(\.id))
             .task(id: dropTarget) {
                 // dropExited isn't always delivered when a drag is cancelled.
                 guard dropTarget != nil else { return }
@@ -351,8 +354,8 @@ struct ClipView: View {
                 }
             }
             .font(.system(size: 11, weight: .medium))
-            .animation(.smooth(duration: 0.3), value: store.toast)
-            .animation(.smooth(duration: 0.3), value: countText)
+            .animation(.gentle, value: store.toast)
+            .animation(.gentle, value: countText)
 
             Spacer()
 
@@ -376,7 +379,7 @@ struct ClipView: View {
                         .glassEffectID("shortcuts", in: glass)
                 }
             }
-            .animation(.smooth(duration: 0.35), value: store.selectedItem == nil)
+            .animation(.glass, value: store.selectedItem == nil)
         }
         .padding(.horizontal, 6)
         .frame(height: 26)
@@ -535,9 +538,9 @@ struct ClipRow: View {
         .contentShape(.rect(cornerRadius: 12))
         .onTapGesture(perform: onTap)
         .onHover { hover = $0 }
-        .animation(.snappy(duration: 0.15), value: hover)
-        .animation(.snappy(duration: 0.15), value: selected)
-        .animation(.snappy(duration: 0.15), value: dropEdge)
+        .animation(.gentle, value: hover)
+        .animation(.gentle, value: selected)
+        .animation(.gentle, value: dropEdge)
     }
 
     private var fill: Color {
@@ -663,7 +666,7 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .help(help)
         .onHover { hover = $0 }
-        .animation(.snappy(duration: 0.15), value: hover)
+        .animation(.gentle, value: hover)
     }
 }
 
@@ -689,6 +692,18 @@ struct GlassIconButton: View {
         .onHover { hover = $0 }
         .help(help)
     }
+}
+
+private struct ListPage: Hashable {
+    let mode: ClipStore.Mode
+    let filter: ClipStore.Filter
+}
+
+extension Animation {
+    /// Unhurried, barely-springy motion for glass shapes moving and morphing.
+    static let glass = Animation.spring(duration: 0.55, bounce: 0.12)
+    /// Soft fades for hover, selection and small state changes.
+    static let gentle = Animation.easeInOut(duration: 0.28)
 }
 
 // MARK: - Drag and drop
@@ -779,7 +794,7 @@ private struct ModeSwitch: View {
     private func segment(_ value: ClipStore.Mode, title: String, symbol: String) -> some View {
         let active = mode == value
         return Button {
-            withAnimation(.bouncy(duration: 0.45, extraBounce: 0.05)) { mode = value }
+            withAnimation(.glass) { mode = value }
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 12, weight: .semibold))
