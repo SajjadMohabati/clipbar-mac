@@ -369,25 +369,12 @@ struct ClipView: View {
 
             Spacer()
 
-            GlassEffectContainer(spacing: 10) {
-                HStack(spacing: 6) {
-                    if let item = store.selectedItem {
-                        Button { paste(item, true) } label: {
-                            HStack(spacing: 6) {
-                                Text(settings.autoPaste ? "Paste" : "Copy")
-                                    .font(.system(size: 12, weight: .semibold))
-                                KeyCap(key: "↩")
-                            }
-                            .padding(.trailing, -6)
-                        }
-                        .buttonStyle(.glass)
-                        .tint(.clear)
-                        .controlSize(.small)
-                        .glassEffectID("paste", in: glass)
-                    }
-                    ShortcutsButton()
-                        .glassEffectID("shortcuts", in: glass)
+            HStack(spacing: 6) {
+                if let item = store.selectedItem {
+                    PasteButton(title: settings.autoPaste ? "Paste" : "Copy") { paste(item, true) }
+                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
                 }
+                ShortcutsButton()
             }
             .animation(.glass, value: store.selectedItem == nil)
         }
@@ -674,6 +661,32 @@ struct IconButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .onHover { hover = $0 }
+        .animation(.gentle, value: hover)
+    }
+}
+
+/// The footer's Paste button, in the same clear glass as the other controls.
+private struct PasteButton: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                KeyCap(key: "↩")
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 5)
+            .frame(height: 28)
+            .background(GlassHighlight(shape: Capsule(), strength: hover ? 1.4 : 1))
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
         .onHover { hover = $0 }
         .animation(.gentle, value: hover)
     }
