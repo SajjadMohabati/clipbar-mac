@@ -47,7 +47,20 @@
 
 ## Install
 
-Requires macOS 26 and the Swift 6 toolchain (Xcode 26 or the command line tools).
+Requires macOS 26 (Apple silicon or Intel).
+
+### From the installer
+
+1. Download `ClipBar-<version>.dmg` from the Releases page and open it.
+2. Drag **ClipBar** onto **Applications**.
+3. Open ClipBar from Applications. The app isn't notarized by Apple, so the first time macOS
+   says it can't check it for malware. Click **Done**, then go to
+   **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+   This is needed only once.
+
+### From source
+
+Requires the Swift 6 toolchain (Xcode 26 or the command line tools).
 
 ```bash
 git clone https://github.com/SajjadMohabati/clipbar-mac.git
@@ -55,7 +68,8 @@ cd clipbar-mac
 ./build.sh install
 ```
 
-`./build.sh` alone builds `ClipBar.app` in the project folder without installing it.
+`./build.sh` alone builds `ClipBar.app` in the project folder without installing it, and
+`./build.sh dmg` builds the installer for Apple silicon and Intel at `dist/ClipBar-<version>.dmg`.
 
 To paste directly into other apps, ClipBar needs **Accessibility** access
 (System Settings → Privacy & Security → Accessibility). Without it, ClipBar still copies the item

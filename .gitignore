@@ -2,3 +2,4 @@
 .swiftpm/
 ClipBar.app/
 .DS_Store
+dist/
