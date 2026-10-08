@@ -334,4 +334,7 @@ final class Panel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// The transparent shadow margin may overlap the menu bar; don't let AppKit push the card down.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
