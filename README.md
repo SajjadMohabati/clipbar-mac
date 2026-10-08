@@ -21,7 +21,6 @@
 <p align="center">
   <a href="https://github.com/SajjadMohabati/clipbar-mac/releases/latest"><b>⬇️ Download ClipBar</b></a>
   &nbsp;·&nbsp; <a href="#features">Features</a>
-  &nbsp;·&nbsp; <a href="#how-clipbar-compares">Compare</a>
   &nbsp;·&nbsp; <a href="#keyboard-shortcuts">Shortcuts</a>
   &nbsp;·&nbsp; <a href="#faq">FAQ</a>
 </p>
@@ -29,6 +28,8 @@
 <p align="center">
   <img src="docs/panel.png" width="440" alt="ClipBar clipboard history panel with Liquid Glass design on macOS Tahoe">
 </p>
+
+<p align="center"><a href="README.fa.md">🇮🇷 فارسی</a></p>
 
 <p align="center"><sub>Created by <a href="https://github.com/SajjadMohabati"><b>Sajjad Mohabati</b></a></sub></p>
 
@@ -89,24 +90,6 @@ app you were using**, while looking like it shipped with macOS Tahoe.
 - Menu bar app with a **custom global shortcut** (default `⇧⌘V`) and launch at login.
 - Liquid Glass design, full keyboard control, light and dark mode.
 - Universal binary for **Apple silicon and Intel**, written in Swift 6 with SwiftUI and AppKit.
-
-## How ClipBar compares
-
-|                                          | **ClipBar** | Maccy |
-| ---------------------------------------- | :---------: | :---: |
-| Free and open source                     | ✅ | ✅ |
-| Lock items with Touch ID + Keychain      | ✅ | ❌ |
-| Screenshots added automatically          | ✅ | ❌ |
-| Search text inside images (OCR)          | ✅ | ❌ |
-| Separate list for saved snippets         | ✅ | pins only |
-| Auto-skips API keys and card numbers     | ✅ | manual regex |
-| Built-in text transforms (JSON, Base64…) | ✅ | ❌ |
-| Editor with inspector (counts, colors, links) | ✅ | basic editor |
-| Liquid Glass design for macOS 26         | ✅ | ❌ |
-| No account, no network access            | ✅ | ✅ (except update checks) |
-| Third-party dependencies                 | **0** | several |
-
-<sub>Based on Maccy's public documentation and source code at the time of writing. Corrections are welcome in an issue.</sub>
 
 ## Install
 
@@ -231,13 +214,6 @@ It runs on both Apple silicon and Intel Macs. It needs macOS 26 Tahoe, because t
 built on the Liquid Glass APIs introduced there.
 </details>
 
-<details>
-<summary><b>Can I use ClipBar as a Maccy, Paste, Flycut or CopyClip alternative?</b></summary>
-
-Yes. ClipBar covers the everyday clipboard history features of those apps and adds Touch ID–locked
-items, automatic screenshot capture, OCR search and text transforms.
-</details>
-
 ## Your data
 
 Everything lives in `~/Library/Application Support/ClipBar/`:
@@ -282,4 +258,4 @@ Created by **Sajjad Mohabati** · [github.com/SajjadMohabati](https://github.com
 
 [MIT](LICENSE) © Sajjad Mohabati
 
-<sub>Keywords: clipboard manager for Mac, clipboard history macOS, menu bar clipboard app, macOS Tahoe clipboard, Liquid Glass app, Maccy alternative, Paste alternative, free clipboard manager, open source clipboard manager, copy paste history Mac, Touch ID clipboard, screenshot to clipboard, OCR clipboard, SwiftUI menu bar app.</sub>
+<sub>Keywords: clipboard manager for Mac, clipboard history macOS, menu bar clipboard app, macOS Tahoe clipboard, Liquid Glass app, free clipboard manager, open source clipboard manager, copy paste history Mac, Touch ID clipboard, screenshot to clipboard, OCR clipboard, SwiftUI menu bar app.</sub>
