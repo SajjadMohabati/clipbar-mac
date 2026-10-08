@@ -221,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case (kVK_ANSI_RightBracket, .command): store.mode = .saved
         case (kVK_Delete, .command): withSelection(store.remove)
         case (kVK_ANSI_S, .command) where store.mode == .history: withSelection(store.save)
-        case (kVK_ANSI_P, .command) where store.mode == .history: withSelection(store.togglePin)
+        case (kVK_ANSI_P, .command) where store.mode == .history: withSelection { item in withAnimation(.glass) { store.togglePin(item) } }
         case (kVK_ANSI_E, .command): withSelection(showEditor)
         case (kVK_ANSI_Comma, .command): openSettings()
         default: return event

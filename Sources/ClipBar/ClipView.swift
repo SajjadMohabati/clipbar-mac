@@ -167,18 +167,22 @@ struct ClipView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        ForEach(Array(store.visible.enumerated()), id: \.element.id) { index, item in
-                            VStack(spacing: 2) {
-                                if let title = sectionTitle(at: index) {
-                                    Text(title)
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(.tertiary)
-                                        .textCase(.uppercase)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 10)
-                                        .padding(.top, index == 0 ? 0 : 6)
-                                }
+                        // Headers and rows are siblings, so a row moving between
+                        // sections slides on its own while the headers just fade.
+                        ForEach(entries) { entry in
+                            switch entry {
+                            case let .header(title, first):
+                                Text(title)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .textCase(.uppercase)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.top, first ? 0 : 6)
+                                    .transition(.opacity)
+                            case let .row(item, index):
                                 row(item, index: index)
+                                    .transition(.opacity)
                             }
                         }
                     }
@@ -205,6 +209,14 @@ struct ClipView: View {
         }
     }
 
+    private var entries: [ListEntry] {
+        store.visible.enumerated().flatMap { index, item in
+            let row = ListEntry.row(item, index: index)
+            guard let title = sectionTitle(at: index) else { return [row] }
+            return [.header(title, first: index == 0), row]
+        }
+    }
+
     private func sectionTitle(at index: Int) -> String? {
         let items = store.visible
         guard !showingSaved, store.filter == .all, items.first?.pinned == true else { return nil }
@@ -220,7 +232,7 @@ struct ClipView: View {
             saved: showingSaved,
             dropEdge: dropTarget?.id == item.id ? dropTarget?.edge : nil,
             onTap: { paste(item, true) },
-            onPin: { store.togglePin(item) },
+            onPin: { withAnimation(.glass) { store.togglePin(item) } },
             onSave: { store.save(item) },
             onEdit: { edit(item) },
             onDelete: { store.remove(item) }
@@ -261,7 +273,7 @@ struct ClipView: View {
             }
         } else {
             Button("Move to Saved") { store.save(item) }
-            Button(item.pinned ? "Unpin" : "Pin") { store.togglePin(item) }
+            Button(item.pinned ? "Unpin" : "Pin") { withAnimation(.glass) { store.togglePin(item) } }
             Button("View and Edit…") { edit(item) }
             Button("Move to Top") { store.moveToTop(item) }
         }
@@ -566,6 +578,7 @@ struct ItemIcon: View {
                         .frame(width: 14, height: 14)
                         .glassEffect(.regular, in: .circle)
                         .offset(x: 4, y: -4)
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
     }
@@ -681,12 +694,25 @@ struct GlassIconButton: View {
                 .foregroundStyle(hover ? .primary : .secondary)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
+                .background(GlassHighlight(shape: Circle(), strength: hover ? 1.4 : 1))
                 .contentShape(.circle)
-                .glassEffect(.regular.interactive(), in: .circle)
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
+        .animation(.gentle, value: hover)
         .help(help)
+    }
+}
+
+private enum ListEntry: Identifiable {
+    case header(String, first: Bool)
+    case row(ClipItem, index: Int)
+
+    var id: String {
+        switch self {
+        case let .header(title, _): "header-\(title)"
+        case let .row(item, _): item.id.uuidString
+        }
     }
 }
 
