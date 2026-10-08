@@ -53,6 +53,8 @@ struct ClipView: View {
         GlassEffectContainer(spacing: 12) {
             HStack(spacing: 8) {
                 ModeSwitch(mode: $store.mode)
+                    .fixedSize()
+                    .layoutPriority(1)
                 if store.paused {
                     Button("Paused", systemImage: "pause.fill") {
                         withAnimation(.glass) { store.paused = false }
@@ -95,7 +97,7 @@ struct ClipView: View {
     private var clearButtons: some View {
             if confirmingClear {
                 // Grows out of the trash button as a drop of red glass.
-                Button("Clear unpinned") {
+                Button("Clear") {
                     withAnimation(.glass) {
                         store.clear(includingPinned: false)
                         confirmingClear = false
@@ -106,6 +108,8 @@ struct ClipView: View {
                 .tint(.red)
                 .controlSize(.small)
                 .glassEffectID("confirm", in: glass)
+                .fixedSize()
+                .help("Delete everything except pinned items")
             }
             GlassIconButton(symbol: confirmingClear ? "xmark" : "trash", help: confirmingClear ? "Cancel" : "Clear history") {
                 withAnimation(.glass) { confirmingClear.toggle() }
@@ -833,6 +837,7 @@ private struct ModeSwitch: View {
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
                 .foregroundStyle(active ? Color.primary : Color.secondary)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)
