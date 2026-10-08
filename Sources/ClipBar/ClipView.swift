@@ -127,31 +127,35 @@ struct ClipView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 2) {
-            ForEach(ClipStore.Filter.allCases) { filter in
-                let active = store.filter == filter
-                Button {
-                    withAnimation(.snappy(duration: 0.25)) { store.filter = filter }
-                } label: {
-                    Text(filter.rawValue)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(active ? Color.white : Color.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background {
-                            if active {
-                                Capsule()
-                                    .fill(Color.accentColor.gradient)
-                                    .matchedGeometryEffect(id: "chip", in: chips)
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 2) {
+                ForEach(ClipStore.Filter.allCases) { filter in
+                    let active = store.filter == filter
+                    Button {
+                        withAnimation(.bouncy(duration: 0.35)) { store.filter = filter }
+                    } label: {
+                        Text(filter.rawValue)
+                            .font(.system(size: 11, weight: active ? .semibold : .medium))
+                            .foregroundStyle(active ? Color.primary : Color.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .contentShape(Capsule())
+                            .background {
+                                // The glass lens slides between chips.
+                                if active {
+                                    Capsule()
+                                        .fill(.clear)
+                                        .glassEffect(.regular.tint(.accentColor.opacity(0.25)).interactive(), in: .capsule)
+                                        .matchedGeometryEffect(id: "chip", in: chips)
+                                }
                             }
-                        }
-                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 2)
         }
-        .padding(.horizontal, 2)
     }
 
     // MARK: - List
@@ -358,8 +362,8 @@ struct ClipView: View {
                     .padding(.leading, 10)
                     .padding(.trailing, 4)
                     .padding(.vertical, 3)
-                    .background(Color.primary.opacity(0.06), in: .capsule)
                     .contentShape(.capsule)
+                    .glassEffect(.regular.tint(.accentColor.opacity(0.2)).interactive(), in: .capsule)
                 }
                 .buttonStyle(.plain)
             }
