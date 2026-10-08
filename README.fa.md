@@ -26,6 +26,7 @@
   &nbsp;·&nbsp; <a href="#shortcuts">میانبرها</a>
   &nbsp;·&nbsp; <a href="#faq">سؤال‌های رایج</a>
   &nbsp;·&nbsp; <a href="README.md">English</a>
+  &nbsp;·&nbsp; <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">

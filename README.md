@@ -29,7 +29,7 @@
   <img src="docs/panel.png" width="440" alt="ClipBar clipboard history panel with Liquid Glass design on macOS Tahoe">
 </p>
 
-<p align="center"><a href="README.fa.md">🇮🇷 فارسی</a></p>
+<p align="center"><a href="README.fa.md">🇮🇷 فارسی</a> &nbsp;·&nbsp; <a href="README.ar.md">🇸🇦 العربية</a></p>
 
 <p align="center"><sub>Created by <a href="https://github.com/SajjadMohabati"><b>Sajjad Mohabati</b></a></sub></p>
 
