@@ -6,6 +6,7 @@ import Foundation
 final class ScreenshotWatcher {
     private let onScreenshot: (URL) -> Void
     private var source: DispatchSourceFileSystemObject?
+    private var locationCheck: Timer?
     private var folder: URL?
     private var seen: Set<String> = []
     private var startDate = Date.now
@@ -26,11 +27,32 @@ final class ScreenshotWatcher {
     }
 
     func start() {
-        guard source == nil else { return }
-        let folder = Self.screenshotFolder
-        let descriptor = open(folder.path, O_EVTONLY)
-        guard descriptor >= 0 else { return }
+        guard locationCheck == nil else { return }
+        watch(Self.screenshotFolder)
+        // The save location can change at any time in ⇧⌘5 → Options; follow it.
+        locationCheck = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, Self.screenshotFolder != self.folder else { return }
+                self.watch(Self.screenshotFolder)
+            }
+        }
+    }
+
+    func stop() {
+        locationCheck?.invalidate()
+        locationCheck = nil
+        source?.cancel()
+        source = nil
+        folder = nil
+    }
+
+    private func watch(_ folder: URL) {
+        source?.cancel()
+        source = nil
         self.folder = folder
+        let descriptor = open(folder.path, O_EVTONLY)
+        // Not readable (yet): forget it so the next location check tries again.
+        guard descriptor >= 0 else { return self.folder = nil }
         startDate = .now
         seen = Set(files(in: folder).map(\.path))
 
@@ -41,11 +63,6 @@ final class ScreenshotWatcher {
         source.setCancelHandler { close(descriptor) }
         source.resume()
         self.source = source
-    }
-
-    func stop() {
-        source?.cancel()
-        source = nil
     }
 
     private func scan() {
