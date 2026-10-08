@@ -700,10 +700,10 @@ private struct ListPage: Hashable {
 }
 
 extension Animation {
-    /// Unhurried, barely-springy motion for glass shapes moving and morphing.
-    static let glass = Animation.spring(duration: 0.55, bounce: 0.12)
-    /// Soft fades for hover, selection and small state changes.
-    static let gentle = Animation.easeInOut(duration: 0.28)
+    /// Quick, calm motion with no overshoot for glass shapes moving and morphing.
+    static let glass = Animation.smooth(duration: 0.35)
+    /// Short soft fades for hover, selection and small state changes.
+    static let gentle = Animation.easeOut(duration: 0.2)
 }
 
 // MARK: - Drag and drop
