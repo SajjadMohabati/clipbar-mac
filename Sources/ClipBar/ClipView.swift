@@ -22,6 +22,7 @@ struct ClipView: View {
     @State private var dropTarget: DropTarget?
     @State private var canPaste = Clipboard.canPaste
     @State private var addingSaved = false
+    @State private var renaming: UUID?
 
     private var showingSaved: Bool { store.mode == .saved }
 
@@ -241,6 +242,7 @@ struct ClipView: View {
             onPin: { withAnimation(.glass) { store.togglePin(item) } },
             onSave: { store.save(item) },
             onEdit: { edit(item) },
+            onRename: { renaming = item.id },
             onDelete: { store.remove(item) }
         )
         .onDrag {
@@ -254,6 +256,15 @@ struct ClipView: View {
             }
         )
         .contextMenu { menu(for: item) }
+        .popover(isPresented: Binding(
+            get: { renaming == item.id },
+            set: { if !$0 { renaming = nil } }
+        ), arrowEdge: .trailing) {
+            TitleForm(title: item.title ?? "") { title in
+                store.renameSaved(item.id, title: title)
+                renaming = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -273,6 +284,7 @@ struct ClipView: View {
         }
         Divider()
         if showingSaved {
+            Button(item.title == nil ? "Add Title…" : "Rename…") { renaming = item.id }
             Button("Edit…") { edit(item) }
             if !item.isLocked {
                 Button("Move to History") { store.unsave(item) }
@@ -476,6 +488,7 @@ struct ClipRow: View {
     let onPin: () -> Void
     let onSave: () -> Void
     let onEdit: () -> Void
+    let onRename: () -> Void
     let onDelete: () -> Void
 
     @State private var hover = false
@@ -507,6 +520,9 @@ struct ClipRow: View {
                     if !saved {
                         IconButton(symbol: item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Unpin" : "Pin", action: onPin)
                         IconButton(symbol: "bookmark", help: "Move to Saved (⌘S)", action: onSave)
+                    }
+                    if saved {
+                        IconButton(symbol: "character.cursor.ibeam", help: item.title == nil ? "Add a title" : "Rename", action: onRename)
                     }
                     IconButton(symbol: "square.and.pencil", help: "View and edit", action: onEdit)
                     IconButton(symbol: "trash", help: "Delete", tint: .red, action: onDelete)
@@ -862,7 +878,7 @@ private struct SavedItemForm: View {
             Label("New Saved Item", systemImage: "bookmark.fill")
                 .font(.system(size: 13, weight: .semibold))
             VStack(alignment: .leading, spacing: 6) {
-                TextField("Title, e.g. Card number", text: $title)
+                TextField("Title, e.g. Bank name", text: $title)
                 TextField("Value to paste", text: $value, axis: .vertical)
                     .lineLimit(2...6)
             }
@@ -883,6 +899,34 @@ private struct SavedItemForm: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+}
+
+/// Names a saved item, e.g. the bank of a card number or what's in a screenshot.
+private struct TitleForm: View {
+    let onSave: (String) -> Void
+    @State private var title: String
+
+    init(title: String, onSave: @escaping (String) -> Void) {
+        self.onSave = onSave
+        _title = State(initialValue: title)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Title", systemImage: "character.cursor.ibeam")
+                .font(.system(size: 13, weight: .semibold))
+            TextField("e.g. Bank name", text: $title)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Spacer()
+                Button("Save") { onSave(title) }
+                    .buttonStyle(.glassProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 260)
     }
 }
 

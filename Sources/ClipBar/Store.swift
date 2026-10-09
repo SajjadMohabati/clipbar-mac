@@ -301,6 +301,14 @@ final class ClipStore: ObservableObject {
         commit(saved: list)
     }
 
+    /// Names a saved item of any kind (text, image or files) without touching its value.
+    func renameSaved(_ id: UUID, title: String) {
+        guard let index = saved.firstIndex(where: { $0.id == id }) else { return }
+        var list = saved
+        list[index].title = Self.cleanTitle(title)
+        commit(saved: list)
+    }
+
     private func store(_ text: String, in item: inout ClipItem, locked: Bool) -> Bool {
         if locked {
             guard Vault.write(text, for: item.id) else {

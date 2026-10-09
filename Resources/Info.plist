@@ -17,25 +17,25 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.1</string>
+	<string>2.2</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSHumanReadableCopyright</key>
-	<string>Created by Sajjad Mohabati · github.com/SajjadMohabati</string>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>ClipBar watches your screenshot folder to add new screenshots to the clipboard history.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Created by Sajjad Mohabati · github.com/SajjadMohabati</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>
@@ -45,14 +45,14 @@
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>io.github.sajjadmohabati.clipbar.item</string>
-			<key>UTTypeDescription</key>
-			<string>ClipBar Item</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>ClipBar Item</string>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.sajjadmohabati.clipbar.item</string>
 		</dict>
 	</array>
 </dict>

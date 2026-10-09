@@ -62,6 +62,7 @@ app you were using**, while looking like it shipped with macOS Tahoe.
 ### Saved items and locking
 - A separate **Saved** list for things you paste again and again: card number, student ID, address, email signature.
 - Add them with **+** or move any history item in with `⌘S`. Saved items are never cleaned up automatically.
+- **Give any saved item a title**, text or image: label a card number with the bank's name, or a screenshot with what it shows. Titles are searchable.
 - **Lock an item** and its value moves into the **macOS Keychain**. It is shown as `••••••••` and needs **Touch ID or your password** to paste, copy, view, edit or delete.
 - After unlocking, you have 30 seconds to do a few things without being asked again.
 - Locked values you paste are marked as *concealed*, so other clipboard tools don't record them.
@@ -97,7 +98,7 @@ app you were using**, while looking like it shipped with macOS Tahoe.
 
 ### Download (recommended)
 
-1. Download **`ClipBar-2.1.dmg`** from the [latest release](https://github.com/SajjadMohabati/clipbar-mac/releases/latest).
+1. Download **`ClipBar-2.2.dmg`** from the [latest release](https://github.com/SajjadMohabati/clipbar-mac/releases/latest).
 2. Open it and drag **ClipBar** onto **Applications**.
 
 <p align="center">

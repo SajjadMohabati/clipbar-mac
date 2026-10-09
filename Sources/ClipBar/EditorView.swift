@@ -33,9 +33,9 @@ struct EditorView: View {
     private var isSaved: Bool { item.map(store.isSaved) ?? false }
 
     private var dirty: Bool {
-        guard isText else { return false }
-        return draft != baseline.text
-            || (isSaved && (savedTitle != baseline.title || locked != baseline.locked))
+        let titleChanged = isSaved && savedTitle != baseline.title
+        guard isText else { return titleChanged }
+        return draft != baseline.text || titleChanged || (isSaved && locked != baseline.locked)
     }
 
     var body: some View {
@@ -239,14 +239,19 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if isSaved {
                     InspectorSection("Saved Item") {
-                        TextField("Title, e.g. Card number", text: $savedTitle)
+                        TextField("Title, e.g. Bank name", text: $savedTitle)
                             .textFieldStyle(.roundedBorder)
-                        Toggle(isOn: $locked) {
-                            Label("Lock with Touch ID", systemImage: "lock.fill")
+                            .onSubmit(save)
+                        if isText {
+                            Toggle(isOn: $locked) {
+                                Label("Lock with Touch ID", systemImage: "lock.fill")
+                            }
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
                         }
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        Text(locked
+                        Text(!isText
+                             ? "The title is shown above the item in Saved."
+                             : locked
                              ? "Kept in the Keychain. Pasting, copying or opening it asks for Touch ID or your password."
                              : "Lock it to hide the value and protect it with Touch ID.")
                             .font(.system(size: 11))
@@ -362,11 +367,13 @@ struct EditorView: View {
 
     // MARK: - Actions
 
-    private var canSave: Bool { dirty && draft.contains { !$0.isWhitespace } }
+    private var canSave: Bool { dirty && (!isText || draft.contains { !$0.isWhitespace }) }
 
     private func save() {
         guard canSave else { return }
-        if isSaved {
+        if !isText {
+            store.renameSaved(id, title: savedTitle)
+        } else if isSaved {
             store.updateSaved(id, title: savedTitle, text: draft, locked: locked)
         } else {
             store.updateText(id, to: draft)
